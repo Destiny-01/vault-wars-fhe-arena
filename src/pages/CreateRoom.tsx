@@ -31,10 +31,17 @@ const CreateRoom = () => {
       return;
     }
 
+    const roomId = `VW-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
+    
     toast({
       title: "Room Created Successfully!",
-      description: `Room ID: VW-${Math.random().toString(36).substr(2, 8).toUpperCase()}`,
+      description: `Room ID: ${roomId}`,
     });
+
+    // Navigate to game screen with room parameters
+    setTimeout(() => {
+      window.location.href = `/game?roomId=${roomId}&player=0x1234&opponent=0x5678&wager=${wager}`;
+    }, 1500);
   };
 
   const isVaultComplete = vaultCode.every(code => code !== '');

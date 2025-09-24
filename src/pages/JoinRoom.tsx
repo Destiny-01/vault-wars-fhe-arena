@@ -41,6 +41,11 @@ const JoinRoom = () => {
         title: "Connection Established!",
         description: "Preparing for vault battle...",
       });
+
+      // Navigate to game screen
+      setTimeout(() => {
+        window.location.href = `/game?roomId=${roomId}&player=0x5678&opponent=0x1234&wager=0.1`;
+      }, 1000);
     }, 2000);
   };
 
