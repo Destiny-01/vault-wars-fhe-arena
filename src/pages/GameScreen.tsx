@@ -237,7 +237,7 @@ export default function GameScreen() {
                     {selectedDigits.map((digit, index) => (
                       <div
                         key={index}
-                        className={`w-12 h-12 rounded border-2 border-dashed flex items-center justify-center font-mono font-bold text-xl transition-all ${
+                        className={`w-14 h-14 rounded border-2 border-dashed flex items-center justify-center font-mono font-bold text-xl transition-all ${
                           isPlayerTurn 
                             ? 'border-primary/50 bg-primary/5 text-primary' 
                             : 'border-muted/30 bg-muted/5 text-muted-foreground'
@@ -266,23 +266,20 @@ export default function GameScreen() {
                         {guess.digits.map((digit, index) => (
                           <div
                             key={index}
-                            className="w-10 h-10 rounded border border-primary/30 bg-primary/10 flex items-center justify-center font-mono font-bold text-primary"
+                            className="w-14 h-14 rounded border border-primary/30 bg-primary/10 flex items-center justify-center font-mono font-bold text-xl text-primary"
                           >
                             {digit}
                           </div>
                         ))}
                       </div>
-                      <div className="flex gap-2 text-xs font-mono">
+                      <div className="flex gap-1 text-xs font-mono">
                         {guess.result && (
                           <>
-                            <span className="px-2 py-1 rounded bg-green-500/20 border border-green-500/30 text-green-400 shadow-green-500/20 shadow-sm">
-                              Breached: {guess.result.breached}
+                            <span className="px-1.5 py-0.5 rounded bg-green-500/20 border border-green-500/30 text-green-400 shadow-green-500/20 shadow-sm">
+                              B:{guess.result.breached}
                             </span>
-                            <span className="px-2 py-1 rounded bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 shadow-yellow-500/20 shadow-sm">
-                              Signal: {guess.result.injured}
-                            </span>
-                            <span className="px-2 py-1 rounded bg-muted/20 border border-muted/30 text-muted-foreground">
-                              Encrypted: {4 - guess.result.breached - guess.result.injured}
+                            <span className="px-1.5 py-0.5 rounded bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 shadow-yellow-500/20 shadow-sm">
+                              S:{guess.result.injured}
                             </span>
                           </>
                         )}
@@ -308,7 +305,7 @@ export default function GameScreen() {
                     {Array.from({length: 4}).map((_, index) => (
                       <div
                         key={index}
-                        className="w-12 h-12 rounded border-2 border-dashed border-accent/30 bg-accent/5 flex items-center justify-center font-mono font-bold text-xl text-accent"
+                        className="w-14 h-14 rounded border-2 border-dashed border-accent/30 bg-accent/5 flex items-center justify-center font-mono font-bold text-xl text-accent"
                       >
                         •
                       </div>
@@ -329,23 +326,20 @@ export default function GameScreen() {
                         {guess.digits.map((digit, index) => (
                           <div
                             key={index}
-                            className="w-10 h-10 rounded border border-accent/30 bg-accent/10 flex items-center justify-center font-mono font-bold text-accent"
+                            className="w-14 h-14 rounded border border-accent/30 bg-accent/10 flex items-center justify-center font-mono font-bold text-xl text-accent"
                           >
                             {digit}
                           </div>
                         ))}
                       </div>
-                      <div className="flex gap-2 text-xs font-mono">
+                      <div className="flex gap-1 text-xs font-mono">
                         {guess.result && (
                           <>
-                            <span className="px-2 py-1 rounded bg-green-500/20 border border-green-500/30 text-green-400 shadow-green-500/20 shadow-sm">
-                              Breached: {guess.result.breached}
+                            <span className="px-1.5 py-0.5 rounded bg-green-500/20 border border-green-500/30 text-green-400 shadow-green-500/20 shadow-sm">
+                              B:{guess.result.breached}
                             </span>
-                            <span className="px-2 py-1 rounded bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 shadow-yellow-500/20 shadow-sm">
-                              Signal: {guess.result.injured}
-                            </span>
-                            <span className="px-2 py-1 rounded bg-muted/20 border border-muted/30 text-muted-foreground">
-                              Encrypted: {4 - guess.result.breached - guess.result.injured}
+                            <span className="px-1.5 py-0.5 rounded bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 shadow-yellow-500/20 shadow-sm">
+                              S:{guess.result.injured}
                             </span>
                           </>
                         )}
