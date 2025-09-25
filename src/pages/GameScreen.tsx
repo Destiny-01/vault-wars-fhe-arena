@@ -133,9 +133,36 @@ export default function GameScreen() {
   // Determine game state
   const isPlayerTurn = roomState?.currentTurn === playerAddress;
   
-  // Filter guesses by player
-  const playerGuesses = roomState?.guesses?.filter(g => Math.random() > 0.5) || []; // Mock filtering
-  const opponentGuesses = roomState?.guesses?.filter(g => Math.random() > 0.5) || []; // Mock filtering
+  // Mock game in progress data
+  const playerGuesses = [
+    {
+      turnIndex: 1,
+      digits: ['1', '2', '3', '4'],
+      result: { breached: 1, injured: 2 },
+      timestamp: Date.now() - 300000
+    },
+    {
+      turnIndex: 2,
+      digits: ['5', '6', '7', '8'],
+      result: { breached: 0, injured: 1 },
+      timestamp: Date.now() - 120000
+    }
+  ];
+  
+  const opponentGuesses = [
+    {
+      turnIndex: 1,
+      digits: ['9', '0', '1', '2'],
+      result: { breached: 2, injured: 0 },
+      timestamp: Date.now() - 250000
+    },
+    {
+      turnIndex: 2,
+      digits: ['3', '4', '5', '6'],
+      result: { breached: 1, injured: 1 },
+      timestamp: Date.now() - 80000
+    }
+  ];
   
   const isComplete = selectedDigits.every(digit => digit !== '');
   const canSubmit = isComplete && !isSubmitting && isPlayerTurn;
@@ -162,17 +189,22 @@ export default function GameScreen() {
       
       <div className="relative z-10 container mx-auto px-4 py-6">
         {/* Room Info Header */}
-        <div className="mb-6 p-4 bg-card/80 backdrop-blur-sm rounded-lg border border-primary/20">
+        <div className="mb-8 p-6 bg-card/80 backdrop-blur-sm rounded-lg border border-primary/20 cyber-border">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-primary font-mono">Room {roomId}</h1>
-              <p className="text-sm text-muted-foreground">Wager: {wager} ETH</p>
+            <div className="space-y-1">
+              <h1 className="text-2xl font-bold text-primary font-mono tracking-wider">
+                VAULT ROOM {roomId}
+              </h1>
+              <div className="flex items-center gap-4 text-sm">
+                <span className="text-accent font-mono">WAGER: {wager} ETH</span>
+                <span className="text-muted-foreground font-mono">WALLET: {playerAddress?.slice(0, 8)}...</span>
+              </div>
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={copyInvitationLink}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 cyber-border hover:shadow-primary/30 hover:shadow-lg transition-all"
             >
               <Copy className="w-4 h-4" />
               Copy Invitation Link
@@ -180,19 +212,55 @@ export default function GameScreen() {
           </div>
         </div>
 
-        {/* Two Column Layout */}
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Left Column - Player Guesses */}
+        {/* Split Screen Battle Layout */}
+        <div className="grid lg:grid-cols-2 gap-8 mb-8">
+          {/* Left Side - My Probes Against Opponent's Vault */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-primary font-mono">Your Guesses</h2>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {playerGuesses.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground font-mono">
-                  No guesses yet
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-primary font-mono tracking-wider">
+                MY PROBES → OPPONENT VAULT
+              </h2>
+              {isPlayerTurn && (
+                <span className="text-xs text-primary animate-pulse font-mono">YOUR TURN</span>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              {/* Always-Ready Blank Row */}
+              <div className={`cyber-border rounded-lg p-4 transition-all ${
+                isPlayerTurn 
+                  ? 'bg-primary/10 border-primary/40 shadow-primary/20 shadow-lg' 
+                  : 'bg-card/20 border-muted/30'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    {selectedDigits.map((digit, index) => (
+                      <div
+                        key={index}
+                        className={`w-12 h-12 rounded border-2 border-dashed flex items-center justify-center font-mono font-bold text-xl transition-all ${
+                          isPlayerTurn 
+                            ? 'border-primary/50 bg-primary/5 text-primary' 
+                            : 'border-muted/30 bg-muted/5 text-muted-foreground'
+                        }`}
+                      >
+                        {digit || "•"}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-sm font-mono">
+                    {isPlayerTurn ? (
+                      <span className="text-primary animate-pulse">READY TO PROBE</span>
+                    ) : (
+                      <span className="text-accent animate-pulse">OPPONENT PROBING...</span>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                playerGuesses.map((guess) => (
-                  <div key={guess.turnIndex} className="cyber-border rounded-lg p-4 bg-card/30">
+              </div>
+
+              {/* Previous Probes */}
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {playerGuesses.map((guess) => (
+                  <div key={guess.turnIndex} className="cyber-border rounded-lg p-4 bg-card/30 border-primary/20">
                     <div className="flex items-center justify-between">
                       <div className="flex gap-2">
                         {guess.digits.map((digit, index) => (
@@ -204,34 +272,58 @@ export default function GameScreen() {
                           </div>
                         ))}
                       </div>
-                      <div className="text-sm font-mono">
-                        {guess.result ? (
-                          <span className="text-muted-foreground">
-                            Dead: <span className="text-green-400">{guess.result.breached}</span> | 
-                            Injured: <span className="text-yellow-400">{guess.result.injured}</span>
-                          </span>
-                        ) : (
-                          <span className="text-accent animate-pulse">Pending...</span>
+                      <div className="flex gap-2 text-xs font-mono">
+                        {guess.result && (
+                          <>
+                            <span className="px-2 py-1 rounded bg-green-500/20 border border-green-500/30 text-green-400 shadow-green-500/20 shadow-sm">
+                              Breached: {guess.result.breached}
+                            </span>
+                            <span className="px-2 py-1 rounded bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 shadow-yellow-500/20 shadow-sm">
+                              Signal: {guess.result.injured}
+                            </span>
+                            <span className="px-2 py-1 rounded bg-muted/20 border border-muted/30 text-muted-foreground">
+                              Encrypted: {4 - guess.result.breached - guess.result.injured}
+                            </span>
+                          </>
                         )}
                       </div>
                     </div>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Right Column - Opponent Guesses */}
+          {/* Right Side - Opponent's Probes Against My Vault */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-accent font-mono">Opponent Guesses</h2>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {opponentGuesses.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground font-mono">
-                  No guesses yet
+            <h2 className="text-lg font-semibold text-accent font-mono tracking-wider">
+              OPPONENT PROBES → MY VAULT
+            </h2>
+            
+            <div className="space-y-2">
+              {/* Opponent's Active Row */}
+              <div className="cyber-border rounded-lg p-4 bg-card/20 border-accent/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    {Array.from({length: 4}).map((_, index) => (
+                      <div
+                        key={index}
+                        className="w-12 h-12 rounded border-2 border-dashed border-accent/30 bg-accent/5 flex items-center justify-center font-mono font-bold text-xl text-accent"
+                      >
+                        •
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-sm font-mono">
+                    <span className="text-muted-foreground">AWAITING PROBE</span>
+                  </div>
                 </div>
-              ) : (
-                opponentGuesses.map((guess) => (
-                  <div key={guess.turnIndex} className="cyber-border rounded-lg p-4 bg-card/30">
+              </div>
+
+              {/* Opponent's Previous Probes */}
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {opponentGuesses.map((guess) => (
+                  <div key={guess.turnIndex} className="cyber-border rounded-lg p-4 bg-card/30 border-accent/20">
                     <div className="flex items-center justify-between">
                       <div className="flex gap-2">
                         {guess.digits.map((digit, index) => (
@@ -243,119 +335,123 @@ export default function GameScreen() {
                           </div>
                         ))}
                       </div>
-                      <div className="text-sm font-mono">
-                        {guess.result ? (
-                          <span className="text-muted-foreground">
-                            Dead: <span className="text-green-400">{guess.result.breached}</span> | 
-                            Injured: <span className="text-yellow-400">{guess.result.injured}</span>
-                          </span>
-                        ) : (
-                          <span className="text-accent animate-pulse">Pending...</span>
+                      <div className="flex gap-2 text-xs font-mono">
+                        {guess.result && (
+                          <>
+                            <span className="px-2 py-1 rounded bg-green-500/20 border border-green-500/30 text-green-400 shadow-green-500/20 shadow-sm">
+                              Breached: {guess.result.breached}
+                            </span>
+                            <span className="px-2 py-1 rounded bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 shadow-yellow-500/20 shadow-sm">
+                              Signal: {guess.result.injured}
+                            </span>
+                            <span className="px-2 py-1 rounded bg-muted/20 border border-muted/30 text-muted-foreground">
+                              Encrypted: {4 - guess.result.breached - guess.result.injured}
+                            </span>
+                          </>
                         )}
                       </div>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Input Section */}
-        <div className="mt-8 p-6 bg-card/80 backdrop-blur-sm rounded-lg border border-primary/20">
-          <div className="text-center mb-6">
-            <h3 className="text-lg font-semibold text-primary font-mono mb-2">
-              {isPlayerTurn ? "Enter Your Guess" : "Opponent's Turn"}
-            </h3>
-            
-            {/* Selected Digits Display */}
-            <div className="flex justify-center gap-3 mb-6">
-              {selectedDigits.map((digit, index) => (
-                <div
-                  key={index}
-                  className="w-16 h-16 rounded-lg border-2 border-dashed border-primary/30 bg-card/20 flex items-center justify-center text-2xl font-mono font-bold text-primary"
-                >
-                  {digit || "_"}
-                </div>
-              ))}
-            </div>
-
-            {/* Number Keypad */}
-            {isPlayerTurn && (
-              <div className="grid grid-cols-5 gap-3 mb-6 max-w-md mx-auto">
-                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => (
-                  <Button
-                    key={number}
-                    variant="outline"
-                    size="lg"
-                    onClick={() => handleDigitSelect(number.toString())}
-                    disabled={selectedDigits.includes(number.toString()) || selectedDigits.every(d => d !== '')}
-                    className="h-12 text-lg font-mono cyber-border"
-                  >
-                    {number}
-                  </Button>
                 ))}
               </div>
-            )}
-
-            {/* Action Buttons */}
-            {isPlayerTurn && (
-              <div className="flex justify-center gap-4">
-                <Button
-                  variant="ghost"
-                  onClick={handleDeleteLast}
-                  disabled={selectedDigits.every(d => d === '')}
-                >
-                  Delete
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={handleClear}
-                  disabled={selectedDigits.every(d => d === '')}
-                >
-                  Clear
-                </Button>
-                <Button
-                  variant="default"
-                  size="lg"
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  className="min-w-24"
-                >
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enter"}
-                </Button>
-              </div>
-            )}
+            </div>
           </div>
         </div>
+
+        {/* Terminal Input Panel */}
+        {isPlayerTurn && (
+          <div className="fixed bottom-0 left-0 right-0 p-6 bg-background/95 backdrop-blur-sm border-t border-primary/20">
+            <div className="container mx-auto">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-semibold text-primary font-mono mb-2 tracking-wider">
+                  TERMINAL KEYPAD
+                </h3>
+                
+                {/* Number Grid */}
+                <div className="grid grid-cols-5 gap-3 mb-6 max-w-md mx-auto">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((number) => (
+                    <Button
+                      key={number}
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleDigitSelect(number.toString())}
+                      disabled={selectedDigits.includes(number.toString()) || selectedDigits.every(d => d !== '')}
+                      className="h-14 text-xl font-mono cyber-border bg-primary/5 hover:bg-primary/20 hover:shadow-primary/30 hover:shadow-lg transition-all border-primary/30 text-primary"
+                    >
+                      {number}
+                    </Button>
+                  ))}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-center gap-4">
+                  <Button
+                    variant="ghost"
+                    onClick={handleDeleteLast}
+                    disabled={selectedDigits.every(d => d === '')}
+                    className="font-mono"
+                  >
+                    Delete
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={handleClear}
+                    disabled={selectedDigits.every(d => d === '')}
+                    className="font-mono"
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="lg"
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    className="min-w-32 font-mono cyber-border bg-primary hover:bg-primary/90 shadow-primary/30 shadow-lg"
+                  >
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "LAUNCH PROBE"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Game End Modal */}
       {gameEndModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-          <div className="bg-card p-8 rounded-lg border border-primary/20 text-center max-w-md mx-4">
-            <h2 className="text-2xl font-bold text-primary font-mono mb-4">
-              {gameEndModal.outcome === 'won' ? "Victory! You breached the vault." : "Defeat! Your vault has been cracked."}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
+          <div className="bg-card/90 backdrop-blur-sm p-8 rounded-lg border cyber-border text-center max-w-md mx-4 shadow-2xl">
+            <h2 className={`text-3xl font-bold font-mono mb-6 tracking-wider ${
+              gameEndModal.outcome === 'won' 
+                ? 'text-green-400 drop-shadow-[0_0_10px_rgb(34,197,94)]' 
+                : 'text-red-400 drop-shadow-[0_0_10px_rgb(239,68,68)]'
+            }`}>
+              {gameEndModal.outcome === 'won' ? "VAULT BREACHED" : "YOUR VAULT HAS BEEN CRACKED"}
             </h2>
-            <div className="mb-6">
-              <p className="text-lg font-mono text-muted-foreground">
+            <div className="mb-8">
+              <p className={`text-xl font-mono ${
+                gameEndModal.outcome === 'won' ? 'text-green-300' : 'text-red-300'
+              }`}>
+                {gameEndModal.outcome === 'won' ? "You win." : ""}
+              </p>
+              <p className="text-lg font-mono text-muted-foreground mt-2">
                 Wager: {wager} ETH
               </p>
             </div>
             <div className="flex gap-4 justify-center">
               {gameEndModal.outcome === 'won' ? (
                 gameEndModal.claimed ? (
-                  <Button onClick={handleReturnHome} className="min-w-32">
-                    Go Home
+                  <Button onClick={handleReturnHome} className="min-w-32 cyber-border">
+                    Exit to Lobby
                   </Button>
                 ) : (
-                  <Button onClick={handleClaimWager} className="min-w-32">
+                  <Button onClick={handleClaimWager} className="min-w-32 cyber-border bg-green-600 hover:bg-green-700 text-white">
                     Claim Wager
                   </Button>
                 )
               ) : (
-                <Button onClick={handleReturnHome} className="min-w-32">
-                  Go Home
+                <Button onClick={handleReturnHome} className="min-w-32 cyber-border">
+                  Exit to Lobby
                 </Button>
               )}
             </div>
