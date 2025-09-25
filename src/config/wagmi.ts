@@ -10,7 +10,7 @@ import {
 
 export const wagmiConfig = getDefaultConfig({
   appName: 'Vault Wars',
-  projectId: 'vault-wars-demo', // Replace with your WalletConnect project ID
+  projectId: 'vault-wars-demo-project', // Replace with your WalletConnect project ID
   chains: [
     mainnet,
     polygon,
