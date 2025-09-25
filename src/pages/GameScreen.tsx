@@ -1,30 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Users, Coins, Wifi, WifiOff } from 'lucide-react';
-import { CyberButton } from '@/components/ui/cyber-button';
-import MatrixBackground from '@/components/MatrixBackground';
-import VaultDisplay from '@/components/game/VaultDisplay';
-import ProbeInput from '@/components/game/ProbeInput';
-import GuessStack from '@/components/game/GuessStack';
-import TurnLog from '@/components/game/TurnLog';
-import WinLossModal from '@/components/game/WinLossModal';
-import PrivacyConsole from '@/components/game/PrivacyConsole';
-import { useGameApi } from '@/hooks/useGameApi';
-import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import MatrixBackground from "@/components/MatrixBackground";
+import { Navbar } from "@/components/layout/Navbar";
+import VaultDisplay from "@/components/game/VaultDisplay";
+import ProbeInput from "@/components/game/ProbeInput";
+import GuessStack from "@/components/game/GuessStack";
+import TurnLog from "@/components/game/TurnLog";
+import WinLossModal from "@/components/game/WinLossModal";
+import PrivacyConsole from "@/components/game/PrivacyConsole";
+import { useGameApi } from "@/hooks/useGameApi";
+import { useToast } from "@/hooks/use-toast";
+import { ResultPosted } from "@/types/game";
+import { Home, Settings, Wifi, WifiOff, Loader2 } from "lucide-react";
 
-const GameScreen = () => {
+export default function GameScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  
-  const roomId = searchParams.get('roomId') || 'DEMO-ROOM';
-  const playerAddress = searchParams.get('player') || '0x1234...5678';
-  const opponentAddress = searchParams.get('opponent') || '0x8765...4321';
-  const wager = searchParams.get('wager') || '0.1';
-  
+
+  // Extract room details from URL
+  const roomId = searchParams.get('roomId') || '';
+  const playerAddress = searchParams.get('playerAddress') || '';
+  const opponentAddress = searchParams.get('opponentAddress') || '';
+  const wager = searchParams.get('wager') || '';
+
   const { roomState, loading, submitProbe, onResultPosted } = useGameApi(roomId);
-  
+
   const [winLossModal, setWinLossModal] = useState<{
     isOpen: boolean;
     outcome?: 'won' | 'lost';
@@ -35,7 +37,7 @@ const GameScreen = () => {
 
   // Listen for result updates
   useEffect(() => {
-    const cleanup = onResultPosted((result) => {
+    const cleanup = onResultPosted((result: ResultPosted) => {
       console.log('Result received:', result);
       
       // Check for win condition (4 breached)
@@ -62,11 +64,17 @@ const GameScreen = () => {
 
   const handleProbeSubmit = async (digits: string[]) => {
     try {
-      const txHash = await submitProbe(digits);
-      console.log('Probe submitted:', txHash);
+      await submitProbe(digits);
+      toast({
+        title: "Probe launched!",
+        description: "Awaiting result...",
+      });
     } catch (error) {
-      console.error('Probe submission failed:', error);
-      throw error;
+      toast({
+        title: "Probe failed",
+        description: "Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -75,7 +83,6 @@ const GameScreen = () => {
   };
 
   const handleRematch = () => {
-    // TODO: Implement rematch API call
     toast({
       title: "Rematch Requested",
       description: "Waiting for opponent response...",
@@ -83,11 +90,14 @@ const GameScreen = () => {
     setWinLossModal({ isOpen: false });
   };
 
+  // Determine game state
   const isPlayerTurn = roomState?.currentTurn === playerAddress;
-  const playerGuesses = roomState?.guesses?.filter(g => true) || []; // TODO: Filter by player
-  const opponentGuesses = roomState?.guesses?.filter(g => false) || []; // TODO: Filter by opponent
   
-  // Calculate breached indices for demo
+  // Filter guesses - TODO: implement proper filtering by player
+  const playerGuesses = roomState?.guesses?.filter(() => true) || [];
+  const opponentGuesses = roomState?.guesses?.filter(() => false) || [];
+  
+  // Calculate breached indices for visual representation
   const breachedIndices = playerGuesses
     .filter(g => g.result?.breached)
     .slice(0, 2)
@@ -95,107 +105,96 @@ const GameScreen = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen matrix-bg flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
+        <Navbar />
         <MatrixBackground />
-        <div className="text-center">
-          <div className="animate-spin text-4xl mb-4">⚡</div>
-          <p className="font-mono text-primary">Loading battle arena...</p>
+        <div className="relative z-10 flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
+            <p className="text-lg text-primary font-mono">Loading battle arena...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen matrix-bg flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
+      <Navbar />
       <MatrixBackground />
       
-      {/* Header */}
-      <header className="relative z-10 border-b border-primary/20 bg-card/80 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+      <div className="relative z-10 container mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="mb-6 p-4 bg-card/80 backdrop-blur-sm rounded-lg border border-primary/20">
           <div className="flex items-center justify-between">
-            {/* Left Side */}
             <div className="flex items-center gap-4">
-              <CyberButton
+              <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleReturnHome}
               >
-                <ArrowLeft className="w-4 h-4" />
-                Exit Battle
-              </CyberButton>
+                <Home className="w-4 h-4 mr-2" />
+                Return to Home
+              </Button>
               
               <div className="hidden md:block">
-                <h1 className="text-xl font-cyber font-bold text-primary text-glow">
-                  Vault Wars
-                </h1>
-                <p className="text-xs font-mono text-muted-foreground">
-                  Breach your rival under encryption
-                </p>
+                <h1 className="text-lg font-bold text-primary font-mono">Vault Wars</h1>
+                <p className="text-xs text-muted-foreground">Breach your rival under encryption</p>
               </div>
             </div>
 
-            {/* Center - Room Info */}
             <div className="text-center">
-              <div className="flex items-center gap-2 mb-1">
-                <Users className="w-4 h-4 text-accent" />
-                <span className="font-mono text-sm text-foreground">
-                  Room: {roomId}
+              <p className="text-sm font-mono text-foreground">Room: {roomId}</p>
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <span>Wager: {wager} ETH</span>
+                <span className={isPlayerTurn ? "text-green-400" : "text-accent"}>
+                  {isPlayerTurn ? "Your Turn" : "Opponent's Turn"}
                 </span>
               </div>
-              <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Coins className="w-3 h-3" />
-                  {wager} ETH
-                </div>
-                <div className={cn(
-                  "flex items-center gap-1",
-                  isPlayerTurn ? "text-neon-green" : "text-accent"
-                )}>
-                  {isPlayerTurn ? "Your Turn" : "Opponent's Turn"}
-                </div>
-              </div>
             </div>
 
-            {/* Right Side - Connection Status */}
             <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPrivacyConsoleOpen(!privacyConsoleOpen)}
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
+              
               {isConnected ? (
-                <div className="flex items-center gap-1 text-neon-green">
+                <div className="flex items-center gap-1 text-green-400">
                   <Wifi className="w-4 h-4" />
-                  <span className="text-xs font-mono hidden sm:block">Connected</span>
+                  <span className="text-xs hidden sm:block">Connected</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1 text-destructive">
+                <div className="flex items-center gap-1 text-red-400">
                   <WifiOff className="w-4 h-4" />
-                  <span className="text-xs font-mono hidden sm:block">Reconnecting...</span>
+                  <span className="text-xs hidden sm:block">Reconnecting...</span>
                 </div>
               )}
             </div>
           </div>
         </div>
-      </header>
 
-      {/* Main Game Area */}
-      <main className="relative z-10 flex-1 max-w-7xl mx-auto w-full px-4 py-6">
-        <div className="grid lg:grid-cols-12 gap-6 h-full">
+        {/* Main Game Layout */}
+        <div className="grid lg:grid-cols-12 gap-6">
           {/* Left Column - Your Side */}
           <div className="lg:col-span-5 space-y-6">
-            {/* Your Vault */}
             <VaultDisplay
               isOwner={true}
-              vaultDigits={roomState?.playerVault}
+              vaultDigits={roomState?.playerVault || ['1', '2', '3', '4']}
               masked={false}
               breachedIndices={breachedIndices}
               label="Your Vault"
             />
 
-            {/* Probe Input */}
             <ProbeInput
               onSubmit={handleProbeSubmit}
               disabled={!isPlayerTurn || !isConnected}
               maxSlots={4}
             />
 
-            {/* Your Guesses */}
             <div className="hidden lg:block">
               <GuessStack
                 guesses={playerGuesses}
@@ -205,7 +204,7 @@ const GameScreen = () => {
             </div>
           </div>
 
-          {/* Center Column - Timeline (Desktop) */}
+          {/* Center Column - Turn Log (Desktop) */}
           <div className="hidden lg:block lg:col-span-2">
             <TurnLog
               guesses={[...playerGuesses, ...opponentGuesses]}
@@ -215,7 +214,6 @@ const GameScreen = () => {
 
           {/* Right Column - Opponent Side */}
           <div className="lg:col-span-5 space-y-6">
-            {/* Opponent Vault */}
             <VaultDisplay
               isOwner={false}
               vaultDigits={null}
@@ -224,7 +222,6 @@ const GameScreen = () => {
               label="Opponent Vault — Encrypted"
             />
 
-            {/* Opponent Guesses */}
             <GuessStack
               guesses={opponentGuesses}
               side="opponent"
@@ -232,24 +229,22 @@ const GameScreen = () => {
             />
           </div>
 
-          {/* Mobile: Stacked Layout */}
+          {/* Mobile Layout */}
           <div className="lg:hidden col-span-full space-y-6">
-            {/* Your Guesses Mobile */}
             <GuessStack
               guesses={playerGuesses}
               side="you"
               title="Your Guesses"
             />
 
-            {/* Timeline Mobile */}
             <TurnLog
               guesses={[...playerGuesses, ...opponentGuesses]}
             />
           </div>
         </div>
-      </main>
+      </div>
 
-      {/* Modals and Overlays */}
+      {/* Modals */}
       <WinLossModal
         isOpen={winLossModal.isOpen}
         outcome={winLossModal.outcome || 'lost'}
@@ -266,6 +261,4 @@ const GameScreen = () => {
       />
     </div>
   );
-};
-
-export default GameScreen;
+}
