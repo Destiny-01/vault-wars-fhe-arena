@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 interface ProbeInputProps {
-  onSubmit: (tiles: string[]) => Promise<void>;
+  onSubmit: (digits: string[]) => Promise<void>;
   disabled: boolean;
   maxSlots: number;
   className?: string;
@@ -17,32 +17,43 @@ const ProbeInput: React.FC<ProbeInputProps> = ({
   maxSlots = 4,
   className
 }) => {
-  const [selectedTiles, setSelectedTiles] = useState<string[]>(Array(maxSlots).fill(''));
+  const [selectedDigits, setSelectedDigits] = useState<string[]>(Array(maxSlots).fill(''));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const vaultOptions = ['🔒', '🔑', '⚡', '🛡️', '💎', '🔥', '❄️', '⭐'];
+  const numberOptions = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
-  const handleTileSelect = (tile: string) => {
-    const emptyIndex = selectedTiles.findIndex(t => !t);
-    if (emptyIndex !== -1) {
-      const newTiles = [...selectedTiles];
-      newTiles[emptyIndex] = tile;
-      setSelectedTiles(newTiles);
+  const handleDigitSelect = (digit: string) => {
+    const emptyIndex = selectedDigits.findIndex(d => !d);
+    if (emptyIndex !== -1 && !selectedDigits.includes(digit)) {
+      const newDigits = [...selectedDigits];
+      newDigits[emptyIndex] = digit;
+      setSelectedDigits(newDigits);
     }
   };
 
-  const handleTileRemove = (index: number) => {
-    const newTiles = [...selectedTiles];
-    newTiles[index] = '';
-    setSelectedTiles(newTiles);
+  const handleDigitRemove = (index: number) => {
+    const newDigits = [...selectedDigits];
+    newDigits[index] = '';
+    setSelectedDigits(newDigits);
   };
 
   const handleSubmit = async () => {
-    if (selectedTiles.some(tile => !tile)) {
+    if (selectedDigits.some(digit => !digit)) {
       toast({
         title: "Incomplete Probe",
-        description: "Select all 4 tiles before launching probe",
+        description: "Select all 4 digits before launching probe",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate no duplicates
+    const uniqueDigits = new Set(selectedDigits);
+    if (uniqueDigits.size !== 4) {
+      toast({
+        title: "Invalid Probe",
+        description: "Each digit must be unique (no repeating numbers)",
         variant: "destructive"
       });
       return;
@@ -50,8 +61,8 @@ const ProbeInput: React.FC<ProbeInputProps> = ({
 
     try {
       setIsSubmitting(true);
-      await onSubmit(selectedTiles);
-      setSelectedTiles(Array(maxSlots).fill(''));
+      await onSubmit(selectedDigits);
+      setSelectedDigits(Array(maxSlots).fill(''));
       toast({
         title: "Probe Launched!",
         description: "Awaiting encrypted result...",
@@ -67,8 +78,9 @@ const ProbeInput: React.FC<ProbeInputProps> = ({
     }
   };
 
-  const isComplete = selectedTiles.every(tile => tile !== '');
-  const canSubmit = isComplete && !disabled && !isSubmitting;
+  const isComplete = selectedDigits.every(digit => digit !== '');
+  const isDigitAvailable = (digit: string) => !selectedDigits.includes(digit);
+  const canSubmit = isComplete && !disabled && !isSubmitting && new Set(selectedDigits).size === 4;
 
   return (
     <div className={cn("cyber-border rounded-lg p-6 bg-card/50", className)}>
@@ -76,49 +88,49 @@ const ProbeInput: React.FC<ProbeInputProps> = ({
       <div className="flex items-center gap-3 mb-4">
         <Zap className="w-5 h-5 text-accent" />
         <h3 className="font-cyber text-lg text-accent font-semibold">
-          {disabled ? "Opponent's Turn" : "Your Turn"}
+          {disabled ? "Opponent's Turn" : "Enter Your Probe"}
         </h3>
         {disabled && <Lock className="w-4 h-4 text-muted-foreground animate-pulse" />}
       </div>
 
-      {/* Selected Tiles Display */}
+      {/* Selected Digits Display */}
       <div className="grid grid-cols-4 gap-3 mb-6">
-        {selectedTiles.map((tile, index) => (
+        {selectedDigits.map((digit, index) => (
           <button
             key={index}
-            onClick={() => tile && handleTileRemove(index)}
+            onClick={() => digit && handleDigitRemove(index)}
             disabled={disabled}
             className={cn(
-              "aspect-square rounded-lg border-2 flex items-center justify-center text-xl font-bold transition-all duration-300",
+              "aspect-square rounded-lg border-2 flex items-center justify-center text-xl font-mono font-bold transition-all duration-300",
               "hover:scale-105 active:scale-95",
-              tile 
+              digit 
                 ? "border-accent bg-accent/20 text-accent hover:bg-accent/30" 
                 : "border-dashed border-muted-foreground/30 bg-card/20",
               disabled && "opacity-50 cursor-not-allowed hover:scale-100"
             )}
-            aria-label={tile ? `Remove ${tile} from slot ${index + 1}` : `Empty slot ${index + 1}`}
+            aria-label={digit ? `Remove ${digit} from slot ${index + 1}` : `Empty slot ${index + 1}`}
           >
-            {tile || (
-              <div className="w-6 h-6 border border-dashed border-muted-foreground/30 rounded" />
+            {digit || (
+              <span className="text-xl text-muted-foreground">_</span>
             )}
           </button>
         ))}
       </div>
 
-      {/* Tile Options */}
+      {/* Number Keypad */}
       {!disabled && (
-        <div className="grid grid-cols-4 gap-2 mb-6">
-          {vaultOptions.map((option, index) => (
+        <div className="grid grid-cols-5 gap-2 mb-6">
+          {numberOptions.map((number) => (
             <CyberButton
-              key={index}
+              key={number}
               variant="outline"
               size="sm"
-              onClick={() => handleTileSelect(option)}
-              disabled={selectedTiles.includes(option) || selectedTiles.every(t => t !== '')}
-              className="text-lg h-12"
-              aria-label={`Select ${option}`}
+              onClick={() => handleDigitSelect(number)}
+              disabled={!isDigitAvailable(number) || selectedDigits.every(d => d !== '')}
+              className="text-lg h-12 font-mono"
+              aria-label={`Select ${number}`}
             >
-              {option}
+              {number}
             </CyberButton>
           ))}
         </div>
@@ -130,10 +142,10 @@ const ProbeInput: React.FC<ProbeInputProps> = ({
           <CyberButton
             variant="ghost"
             size="sm"
-            onClick={() => setSelectedTiles(Array(maxSlots).fill(''))}
-            disabled={selectedTiles.every(tile => !tile)}
+            onClick={() => setSelectedDigits(Array(maxSlots).fill(''))}
+            disabled={selectedDigits.every(digit => !digit)}
           >
-            Clear All
+            Clear
           </CyberButton>
         )}
         
@@ -147,7 +159,7 @@ const ProbeInput: React.FC<ProbeInputProps> = ({
           {isSubmitting ? (
             <>
               <div className="animate-spin">⚡</div>
-              Encrypting...
+              Processing...
             </>
           ) : disabled ? (
             <>
@@ -166,7 +178,7 @@ const ProbeInput: React.FC<ProbeInputProps> = ({
       {/* Status */}
       <div className="mt-4 text-center">
         <span className="text-xs font-mono text-muted-foreground">
-          {selectedTiles.filter(tile => tile).length}/{maxSlots} tiles selected
+          {selectedDigits.filter(digit => digit).length}/{maxSlots} digits selected
         </span>
       </div>
     </div>

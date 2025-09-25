@@ -60,19 +60,19 @@ const TurnRow: React.FC<TurnRowProps> = ({
         </div>
       </div>
 
-      {/* Tiles */}
+      {/* Digits */}
       <div className="grid grid-cols-4 gap-2 mb-3">
-        {guess.tiles.map((tile, index) => (
+        {guess.digits.map((digit, index) => (
           <div
             key={index}
             className={cn(
-              "aspect-square rounded border flex items-center justify-center text-lg font-bold transition-all duration-300",
+              "aspect-square rounded border flex items-center justify-center text-lg font-mono font-bold transition-all duration-300",
               "border-primary/30 bg-primary/10",
-              guess.result?.breaches && Math.random() > 0.5 && "animate-pulse text-neon-green border-neon-green",
-              guess.result?.signals && Math.random() > 0.7 && "animate-pulse text-cyber-blue border-cyber-blue"
+              guess.result?.breached && Math.random() > 0.5 && "animate-pulse text-neon-green border-neon-green",
+              guess.result?.injured && Math.random() > 0.7 && "animate-pulse text-cyber-blue border-cyber-blue"
             )}
           >
-            {tile}
+            {digit}
           </div>
         ))}
       </div>
@@ -85,23 +85,23 @@ const TurnRow: React.FC<TurnRowProps> = ({
         </div>
       ) : guess.result ? (
         <div className="flex items-center justify-center gap-4">
-          {guess.result.breaches > 0 && (
+          {guess.result.breached > 0 && (
             <div className="flex items-center gap-1">
               <Shield className="w-4 h-4 text-neon-green" />
               <span className="text-sm font-mono text-neon-green font-bold">
-                {guess.result.breaches} Breach{guess.result.breaches !== 1 ? 'es' : ''}
+                {guess.result.breached} Breached
               </span>
             </div>
           )}
-          {guess.result.signals > 0 && (
+          {guess.result.injured > 0 && (
             <div className="flex items-center gap-1">
               <Zap className="w-4 h-4 text-cyber-blue" />
               <span className="text-sm font-mono text-cyber-blue font-bold">
-                {guess.result.signals} Signal{guess.result.signals !== 1 ? 's' : ''}
+                {guess.result.injured} Injured
               </span>
             </div>
           )}
-          {guess.result.breaches === 0 && guess.result.signals === 0 && (
+          {guess.result.breached === 0 && guess.result.injured === 0 && (
             <span className="text-sm font-mono text-muted-foreground">No match</span>
           )}
         </div>

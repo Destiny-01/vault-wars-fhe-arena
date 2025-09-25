@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Coins, Lock, Play } from 'lucide-react';
+import { ArrowLeft, Coins, Play } from 'lucide-react';
 import { CyberButton } from '@/components/ui/cyber-button';
 import { CyberInput } from '@/components/ui/cyber-input';
 import { CyberCard, CyberCardContent, CyberCardHeader, CyberCardTitle } from '@/components/ui/cyber-card';
 import MatrixBackground from '@/components/MatrixBackground';
-import VaultIcon from '@/components/VaultIcon';
 import { useToast } from '@/hooks/use-toast';
 
 const CreateRoom = () => {
@@ -13,7 +12,7 @@ const CreateRoom = () => {
   const [vaultCode, setVaultCode] = useState(['', '', '', '']);
   const { toast } = useToast();
 
-  const vaultOptions = ['🔒', '🔑', '⚡', '🛡️', '💎', '🔥', '❄️', '⭐'];
+  const numberOptions = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
   const handleVaultCodeChange = (index: number, value: string) => {
     const newCode = [...vaultCode];
@@ -21,11 +20,31 @@ const CreateRoom = () => {
     setVaultCode(newCode);
   };
 
+  const generateRandomCode = () => {
+    const shuffled = [...numberOptions].sort(() => Math.random() - 0.5);
+    setVaultCode(shuffled.slice(0, 4));
+  };
+
+  const isNumberAvailable = (number: string) => {
+    return !vaultCode.includes(number);
+  };
+
   const handleCreateRoom = () => {
     if (!wager || vaultCode.some(code => !code)) {
       toast({
         title: "Incomplete Setup",
         description: "Please set your wager amount and complete vault code",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check for duplicate numbers
+    const uniqueNumbers = new Set(vaultCode);
+    if (uniqueNumbers.size !== 4) {
+      toast({
+        title: "Invalid Vault Code",
+        description: "Each digit must be unique (no repeating numbers)",
         variant: "destructive"
       });
       return;
@@ -40,7 +59,7 @@ const CreateRoom = () => {
 
     // Navigate to game screen with room parameters
     setTimeout(() => {
-      window.location.href = `/game?roomId=${roomId}&player=0x1234&opponent=0x5678&wager=${wager}`;
+      window.location.href = `/game?roomId=${roomId}&player=0x1234&opponent=0x5678&wager=${wager}&vaultCode=${vaultCode.join('')}`;
     }, 1500);
   };
 
@@ -81,7 +100,7 @@ const CreateRoom = () => {
               {/* Wager Input */}
               <div>
                 <label className="block text-sm font-mono text-primary mb-3">
-                  Wager Amount (ETH)
+                  Enter Wager Amount (ETH)
                 </label>
                 <CyberInput
                   type="number"
@@ -100,7 +119,7 @@ const CreateRoom = () => {
               {/* Vault Code Selection */}
               <div>
                 <label className="block text-sm font-mono text-primary mb-3">
-                  Vault Code (4 Elements)
+                  Set Your Vault Code (4 digits)
                 </label>
                 
                 <div className="grid grid-cols-4 gap-4 mb-6">
@@ -108,35 +127,35 @@ const CreateRoom = () => {
                     <div key={index} className="text-center">
                       <div className="cyber-border rounded-lg p-4 h-20 flex items-center justify-center bg-card/50 mb-2">
                         {code ? (
-                          <span className="text-3xl animate-pulse-glow">{code}</span>
+                          <span className="text-3xl font-mono text-primary animate-pulse-glow">{code}</span>
                         ) : (
-                          <Lock className="w-8 h-8 text-muted-foreground" />
+                          <span className="text-3xl text-muted-foreground">_</span>
                         )}
                       </div>
                       <span className="text-xs font-mono text-muted-foreground">
-                        Slot {index + 1}
+                        Digit {index + 1}
                       </span>
                     </div>
                   ))}
                 </div>
 
-                {/* Vault Option Selector */}
-                <div className="grid grid-cols-4 gap-2">
-                  {vaultOptions.map((option, index) => (
+                {/* Number Selector Keypad */}
+                <div className="grid grid-cols-5 gap-2">
+                  {numberOptions.map((number) => (
                     <CyberButton
-                      key={index}
+                      key={number}
                       variant="outline"
                       size="sm"
                       onClick={() => {
                         const emptyIndex = vaultCode.findIndex(code => !code);
-                        if (emptyIndex !== -1) {
-                          handleVaultCodeChange(emptyIndex, option);
+                        if (emptyIndex !== -1 && isNumberAvailable(number)) {
+                          handleVaultCodeChange(emptyIndex, number);
                         }
                       }}
-                      className="text-lg h-12"
-                      disabled={vaultCode.includes(option)}
+                      className="text-lg h-12 font-mono"
+                      disabled={!isNumberAvailable(number)}
                     >
-                      {option}
+                      {number}
                     </CyberButton>
                   ))}
                 </div>
@@ -150,6 +169,14 @@ const CreateRoom = () => {
                     Clear All
                   </CyberButton>
                   
+                  <CyberButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={generateRandomCode}
+                  >
+                    Randomize Code
+                  </CyberButton>
+                  
                   <span className="text-xs font-mono text-muted-foreground">
                     {vaultCode.filter(code => code).length}/4 selected
                   </span>
@@ -159,11 +186,12 @@ const CreateRoom = () => {
               {/* Vault Preview */}
               <div className="text-center p-6 bg-card/30 rounded-lg cyber-border">
                 <h3 className="text-lg font-mono text-primary mb-4">Vault Preview</h3>
-                <VaultIcon 
-                  variant={isVaultComplete ? "locked" : "unlocked"} 
-                  size="xl" 
-                  className="mx-auto mb-4"
-                />
+                <div className="text-4xl font-mono text-primary mb-4">
+                  {isVaultComplete 
+                    ? vaultCode.map(() => '●').join(' ')
+                    : '_ _ _ _'
+                  }
+                </div>
                 <p className="text-sm text-muted-foreground font-mono">
                   {isVaultComplete ? "Vault secured and ready" : "Configure your vault code"}
                 </p>
@@ -177,7 +205,7 @@ const CreateRoom = () => {
                 disabled={!isFormValid}
               >
                 <Play className="w-5 h-5" />
-                Initialize Battle Room
+                Create Room
               </CyberButton>
             </CyberCardContent>
           </CyberCard>

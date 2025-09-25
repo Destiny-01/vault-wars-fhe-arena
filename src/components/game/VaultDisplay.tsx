@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 interface VaultDisplayProps {
   isOwner: boolean;
-  vaultTiles: string[] | null;
+  vaultDigits: string[] | null;
   masked: boolean;
   breachedIndices: number[];
   label: string;
@@ -13,13 +13,13 @@ interface VaultDisplayProps {
 
 const VaultDisplay: React.FC<VaultDisplayProps> = ({
   isOwner,
-  vaultTiles,
+  vaultDigits,
   masked,
   breachedIndices,
   label,
   className
 }) => {
-  const tiles = vaultTiles || ['', '', '', ''];
+  const digits = vaultDigits || ['', '', '', ''];
 
   return (
     <div className={cn("cyber-border rounded-lg p-6 bg-card/50", className)}>
@@ -41,32 +41,32 @@ const VaultDisplay: React.FC<VaultDisplayProps> = ({
       </div>
 
       {/* Vault Grid */}
-      <div className="grid grid-cols-2 gap-3">
-        {tiles.map((tile, index) => (
+      <div className="grid grid-cols-4 gap-3">
+        {digits.map((digit, index) => (
           <div
             key={index}
             className={cn(
-              "relative aspect-square rounded-lg flex items-center justify-center text-2xl font-bold transition-all duration-300",
+              "relative aspect-square rounded-lg flex items-center justify-center text-2xl font-mono font-bold transition-all duration-300",
               "border-2 bg-card/30",
               breachedIndices.includes(index) 
                 ? "border-neon-green bg-neon-green/20 animate-pulse-glow" 
                 : "border-primary/30",
-              masked && !isOwner && "blur-sm",
-              !tile && "border-dashed border-muted-foreground/30"
+              !digit && "border-dashed border-muted-foreground/30"
             )}
           >
-            {/* Tile Content */}
+            {/* Digit Content */}
             {masked && !isOwner ? (
-              <div className="w-8 h-8 rounded bg-muted-foreground/20 animate-pulse" />
-            ) : tile ? (
+              <span className="text-2xl font-mono text-accent opacity-60">●</span>
+            ) : digit ? (
               <span className={cn(
-                "transition-all duration-300",
+                "text-2xl font-mono transition-all duration-300",
+                isOwner ? "text-primary" : "text-accent",
                 breachedIndices.includes(index) && "animate-bounce text-neon-green"
               )}>
-                {tile}
+                {digit}
               </span>
             ) : (
-              <div className="w-6 h-6 border border-dashed border-muted-foreground/30 rounded" />
+              <span className="text-2xl text-muted-foreground">_</span>
             )}
 
             {/* Breach Effect */}
@@ -74,7 +74,7 @@ const VaultDisplay: React.FC<VaultDisplayProps> = ({
               <div className="absolute inset-0 bg-neon-green/10 rounded-lg animate-pulse-glow" />
             )}
 
-            {/* Crack Effect for Breached Tiles */}
+            {/* Crack Effect for Breached Digits */}
             {breachedIndices.includes(index) && (
               <div className="absolute inset-0 pointer-events-none">
                 <div className="w-full h-0.5 bg-neon-green absolute top-1/2 left-0 opacity-80 animate-pulse" />

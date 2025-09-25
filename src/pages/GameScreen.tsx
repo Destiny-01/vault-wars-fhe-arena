@@ -38,12 +38,12 @@ const GameScreen = () => {
     const cleanup = onResultPosted((result) => {
       console.log('Result received:', result);
       
-      // Check for win condition (4 breaches)
-      if (result.signedPlainResult.breaches >= 4) {
+      // Check for win condition (4 breached)
+      if (result.signedPlainResult.breached >= 4) {
         setWinLossModal({
           isOpen: true,
           outcome: 'won',
-          reason: 'All vault blocks breached!'
+          reason: 'All vault digits breached!'
         });
       }
     });
@@ -60,9 +60,9 @@ const GameScreen = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleProbeSubmit = async (tiles: string[]) => {
+  const handleProbeSubmit = async (digits: string[]) => {
     try {
-      const txHash = await submitProbe(tiles);
+      const txHash = await submitProbe(digits);
       console.log('Probe submitted:', txHash);
     } catch (error) {
       console.error('Probe submission failed:', error);
@@ -89,7 +89,7 @@ const GameScreen = () => {
   
   // Calculate breached indices for demo
   const breachedIndices = playerGuesses
-    .filter(g => g.result?.breaches)
+    .filter(g => g.result?.breached)
     .slice(0, 2)
     .map((_, i) => i);
 
@@ -182,7 +182,7 @@ const GameScreen = () => {
             {/* Your Vault */}
             <VaultDisplay
               isOwner={true}
-              vaultTiles={roomState?.playerVault}
+              vaultDigits={roomState?.playerVault}
               masked={false}
               breachedIndices={breachedIndices}
               label="Your Vault"
@@ -218,10 +218,10 @@ const GameScreen = () => {
             {/* Opponent Vault */}
             <VaultDisplay
               isOwner={false}
-              vaultTiles={null}
+              vaultDigits={null}
               masked={true}
               breachedIndices={[]}
-              label="Opponent Vault — Locked"
+              label="Opponent Vault — Encrypted"
             />
 
             {/* Opponent Guesses */}

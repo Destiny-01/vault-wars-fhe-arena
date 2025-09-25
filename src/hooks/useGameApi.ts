@@ -16,20 +16,20 @@ const api = {
       guesses: [
         {
           turnIndex: 1,
-          tiles: ['🔒', '🔑', '⚡', '🛡️'],
-          result: { breaches: 1, signals: 2 },
+          digits: ['1', '2', '3', '4'],
+          result: { breached: 1, injured: 2 },
           timestamp: Date.now() - 120000,
           txHash: '0xabc123'
         },
         {
           turnIndex: 2,
-          tiles: ['💎', '🔥', '❄️', '⭐'],
-          result: { breaches: 0, signals: 1 },
+          digits: ['5', '6', '7', '8'],
+          result: { breached: 0, injured: 1 },
           timestamp: Date.now() - 60000,
           txHash: '0xdef456'
         }
       ],
-      playerVault: ['🔒', '🔑', '⚡', '🛡️'],
+      playerVault: ['1', '2', '3', '4'],
       gameStatus: 'active'
     };
   },
@@ -46,12 +46,12 @@ const api = {
 
 // TODO: Replace with actual crypto library when FHE is implemented
 const crypto = {
-  async encryptGuess(tiles: string[]): Promise<string> {
+  async encryptGuess(digits: string[]): Promise<string> {
     // Placeholder implementation - replace with actual TFHE encryption
     await new Promise(resolve => setTimeout(resolve, 300));
     
     const mockCiphertext = btoa(JSON.stringify({
-      tiles,
+      digits,
       timestamp: Date.now(),
       nonce: Math.random()
     }));
@@ -84,12 +84,12 @@ export const useGameApi = (roomId: string) => {
     }
   }, [roomId]);
 
-  const submitProbe = useCallback(async (tiles: string[]) => {
+  const submitProbe = useCallback(async (digits: string[]) => {
     if (!roomState) return;
 
     try {
       // Encrypt guess using placeholder crypto
-      const encryptedGuess = await crypto.encryptGuess(tiles);
+      const encryptedGuess = await crypto.encryptGuess(digits);
       
       // Submit to blockchain
       const { txHash } = await api.submitProbe(roomId, encryptedGuess);
@@ -97,7 +97,7 @@ export const useGameApi = (roomId: string) => {
       // Add pending guess to local state
       const pendingGuess: Guess = {
         turnIndex: roomState.guesses.length + 1,
-        tiles,
+        digits,
         timestamp: Date.now(),
         txHash,
         pending: true
@@ -125,8 +125,8 @@ export const useGameApi = (roomId: string) => {
           turnIndex: roomState.guesses.length,
           targetPlayer: roomState.playerAddress,
           signedPlainResult: {
-            breaches: Math.floor(Math.random() * 3),
-            signals: Math.floor(Math.random() * 4)
+            breached: Math.floor(Math.random() * 3),
+            injured: Math.floor(Math.random() * 4)
           },
           resultCipher: 'CIPHER_0xresult123',
           signature: 'DEMO-SIG'

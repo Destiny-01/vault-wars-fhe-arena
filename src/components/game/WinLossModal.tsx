@@ -51,7 +51,7 @@ const WinLossModal: React.FC<WinLossModalProps> = ({
             "text-2xl font-cyber font-bold mb-4 text-glow",
             isWinner ? "text-neon-green" : "text-destructive"
           )}>
-            {isWinner ? "VAULT OVERRIDE COMPLETE" : "SYSTEM LOCKED — YOU LOST"}
+            {isWinner ? "Vault Breached — You Win!" : "Your Vault Was Breached — You Lose"}
           </h2>
 
           {/* Reason */}
@@ -100,7 +100,7 @@ const WinLossModal: React.FC<WinLossModalProps> = ({
               onClick={onRematch}
             >
               <RefreshCw className="w-5 h-5" />
-              Request Rematch
+              Play Again
             </CyberButton>
 
             <CyberButton

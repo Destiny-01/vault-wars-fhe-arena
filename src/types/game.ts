@@ -1,9 +1,9 @@
 export interface Guess {
   turnIndex: number;
-  tiles: string[];
+  digits: string[];
   result?: {
-    breaches: number;
-    signals: number;
+    breached: number;
+    injured: number;
   };
   timestamp: number;
   txHash?: string;
@@ -27,8 +27,8 @@ export interface ResultPosted {
   turnIndex: number;
   targetPlayer: string;
   signedPlainResult: {
-    breaches: number;
-    signals: number;
+    breached: number;
+    injured: number;
   };
   resultCipher: string;
   signature: string;
