@@ -97,23 +97,23 @@ const TurnLog: React.FC<TurnLogProps> = ({
                 <div className="flex items-center gap-2">
                   {guess.result ? (
                     <>
-                      {guess.result.breaches > 0 && (
+                      {guess.result.breached > 0 && (
                         <div className="flex items-center gap-1">
                           <Shield className="w-3 h-3 text-neon-green" />
                           <span className="text-xs font-mono text-neon-green">
-                            {guess.result.breaches}
+                            {guess.result.breached}
                           </span>
                         </div>
                       )}
-                      {guess.result.signals > 0 && (
+                      {guess.result.injured > 0 && (
                         <div className="flex items-center gap-1">
                           <Zap className="w-3 h-3 text-cyber-blue" />
                           <span className="text-xs font-mono text-cyber-blue">
-                            {guess.result.signals}
+                            {guess.result.injured}
                           </span>
                         </div>
                       )}
-                      {guess.result.breaches === 0 && guess.result.signals === 0 && (
+                      {guess.result.breached === 0 && guess.result.injured === 0 && (
                         <span className="text-xs font-mono text-muted-foreground">
                           Miss
                         </span>
@@ -144,13 +144,13 @@ const TurnLog: React.FC<TurnLogProps> = ({
             {/* Expanded Details */}
             {expandedTurns.has(guess.turnIndex) && (
               <div className="mt-2 p-3 bg-background/50 rounded border border-primary/20 ml-4">
-                {/* Tiles */}
+                {/* Digits */}
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-mono text-accent">Tiles:</span>
+                  <span className="text-xs font-mono text-accent">Digits:</span>
                   <div className="flex gap-1">
-                    {guess.tiles.map((tile, tileIndex) => (
-                      <span key={tileIndex} className="text-sm font-mono">
-                        {tile}
+                    {guess.digits.map((digit, digitIndex) => (
+                      <span key={digitIndex} className="text-sm font-mono bg-card/50 px-2 py-1 rounded">
+                        {digit}
                       </span>
                     ))}
                   </div>
