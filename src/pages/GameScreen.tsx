@@ -92,11 +92,21 @@ export default function GameScreen() {
 
     try {
       setIsSubmitting(true);
-      await submitProbe(selectedDigits);
+      
+      // Add to player guesses with mock result
+      const newGuess = {
+        turnIndex: playerGuesses.length + 1,
+        digits: [...selectedDigits],
+        result: { breached: Math.floor(Math.random() * 3), injured: Math.floor(Math.random() * 2) },
+        timestamp: Date.now()
+      };
+      
+      setPlayerGuesses(prev => [...prev, newGuess]);
       setSelectedDigits(['', '', '', '']);
+      
       toast({
-        title: "Guess submitted!",
-        description: "Awaiting result...",
+        title: "Probe launched!",
+        description: "Scanning vault defenses...",
       });
     } catch (error) {
       toast({
@@ -130,11 +140,11 @@ export default function GameScreen() {
     });
   };
 
-  // Determine game state
-  const isPlayerTurn = roomState?.currentTurn === playerAddress;
+  // Determine game state - force player turn for testing
+  const isPlayerTurn = true;
   
   // Mock game in progress data
-  const playerGuesses = [
+  const [playerGuesses, setPlayerGuesses] = useState([
     {
       turnIndex: 1,
       digits: ['1', '2', '3', '4'],
@@ -147,7 +157,7 @@ export default function GameScreen() {
       result: { breached: 0, injured: 1 },
       timestamp: Date.now() - 120000
     }
-  ];
+  ]);
   
   const opponentGuesses = [
     {
@@ -166,6 +176,18 @@ export default function GameScreen() {
   
   const isComplete = selectedDigits.every(digit => digit !== '');
   const canSubmit = isComplete && !isSubmitting && isPlayerTurn;
+
+  // Listen for Enter key
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && canSubmit) {
+        handleSubmit();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [canSubmit]);
 
   if (loading) {
     return (
@@ -226,37 +248,6 @@ export default function GameScreen() {
             </div>
             
             <div className="space-y-2">
-              {/* Always-Ready Blank Row */}
-              <div className={`cyber-border rounded-lg p-4 transition-all ${
-                isPlayerTurn 
-                  ? 'bg-primary/10 border-primary/40 shadow-primary/20 shadow-lg' 
-                  : 'bg-card/20 border-muted/30'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-2">
-                    {selectedDigits.map((digit, index) => (
-                      <div
-                        key={index}
-                        className={`w-14 h-14 rounded border-2 border-dashed flex items-center justify-center font-mono font-bold text-xl transition-all ${
-                          isPlayerTurn 
-                            ? 'border-primary/50 bg-primary/5 text-primary' 
-                            : 'border-muted/30 bg-muted/5 text-muted-foreground'
-                        }`}
-                      >
-                        {digit || "•"}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="text-sm font-mono">
-                    {isPlayerTurn ? (
-                      <span className="text-primary animate-pulse">READY TO PROBE</span>
-                    ) : (
-                      <span className="text-accent animate-pulse">OPPONENT PROBING...</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
               {/* Previous Probes */}
               <div className="space-y-2 max-h-80 overflow-y-auto">
                 {playerGuesses.map((guess) => (
@@ -266,7 +257,7 @@ export default function GameScreen() {
                         {guess.digits.map((digit, index) => (
                           <div
                             key={index}
-                            className="w-14 h-14 rounded border border-primary/30 bg-primary/10 flex items-center justify-center font-mono font-bold text-xl text-primary"
+                            className="w-20 h-20 rounded border border-primary/30 bg-primary/10 flex items-center justify-center font-mono font-bold text-3xl text-primary"
                           >
                             {digit}
                           </div>
@@ -287,6 +278,37 @@ export default function GameScreen() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Active Input Row - Always at Bottom */}
+              <div className={`cyber-border rounded-lg p-4 transition-all ${
+                isPlayerTurn 
+                  ? 'bg-primary/10 border-primary/40 shadow-primary/20 shadow-lg' 
+                  : 'bg-card/20 border-muted/30'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    {selectedDigits.map((digit, index) => (
+                      <div
+                        key={index}
+                        className={`w-20 h-20 rounded border-2 border-dashed flex items-center justify-center font-mono font-bold text-3xl transition-all ${
+                          isPlayerTurn 
+                            ? 'border-primary/50 bg-primary/5 text-primary' 
+                            : 'border-muted/30 bg-muted/5 text-muted-foreground'
+                        }`}
+                      >
+                        {digit || "•"}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-sm font-mono">
+                    {isPlayerTurn ? (
+                      <span className="text-primary animate-pulse">READY TO PROBE</span>
+                    ) : (
+                      <span className="text-accent animate-pulse">OPPONENT PROBING...</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -326,7 +348,7 @@ export default function GameScreen() {
                         {guess.digits.map((digit, index) => (
                           <div
                             key={index}
-                            className="w-14 h-14 rounded border border-accent/30 bg-accent/10 flex items-center justify-center font-mono font-bold text-xl text-accent"
+                            className="w-20 h-20 rounded border border-accent/30 bg-accent/10 flex items-center justify-center font-mono font-bold text-3xl text-accent"
                           >
                             {digit}
                           </div>
@@ -401,6 +423,11 @@ export default function GameScreen() {
                     onClick={handleSubmit}
                     disabled={!canSubmit}
                     className="min-w-32 font-mono cyber-border bg-primary hover:bg-primary/90 shadow-primary/30 shadow-lg"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && canSubmit) {
+                        handleSubmit();
+                      }
+                    }}
                   >
                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "LAUNCH PROBE"}
                   </Button>
