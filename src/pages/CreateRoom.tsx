@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
@@ -10,20 +10,32 @@ import VaultDisplay from "@/components/game/VaultDisplay";
 import { Navbar } from "@/components/layout/Navbar";
 import { ConnectWalletModal } from "@/components/wallet/ConnectWalletModal";
 import { RoomCreatedModal } from "@/components/modals/RoomCreatedModal";
+import { HowToPlayModal } from "@/components/modals/HowToPlayModal";
 import { useVaultWarsContract } from "@/hooks/useVaultWarsContract";
 import { useToast } from "@/hooks/use-toast";
 import { Home, Shuffle } from "lucide-react";
 
 export default function CreateRoom() {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { isConnected } = useAccount();
   const { createRoom } = useVaultWarsContract();
+  const { toast } = useToast();
+  
   const [wager, setWager] = useState("");
   const [vaultCode, setVaultCode] = useState<string[]>(["", "", "", ""]);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [showRoomCreatedModal, setShowRoomCreatedModal] = useState(false);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [createdRoomId, setCreatedRoomId] = useState("");
+
+  // Show how to play modal first, then proceed with room creation
+  useEffect(() => {
+    setShowHowToPlay(true);
+  }, []);
+
+  const proceedWithCreation = () => {
+    setShowHowToPlay(false);
+  };
 
   const handleVaultCodeChange = (index: number, value: string) => {
     if (value === "" || (/^\d$/.test(value) && !vaultCode.includes(value))) {
@@ -235,6 +247,13 @@ export default function CreateRoom() {
         open={showRoomCreatedModal}
         onOpenChange={setShowRoomCreatedModal}
         roomId={createdRoomId}
+      />
+
+      <HowToPlayModal
+        isOpen={showHowToPlay}
+        onClose={() => navigate('/')}
+        onProceed={proceedWithCreation}
+        showProceedButton={true}
       />
     </div>
   );

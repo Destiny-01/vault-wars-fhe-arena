@@ -9,6 +9,7 @@ import MatrixBackground from "@/components/MatrixBackground";
 import VaultDisplay from "@/components/game/VaultDisplay";
 import { Navbar } from "@/components/layout/Navbar";
 import { ConnectWalletModal } from "@/components/wallet/ConnectWalletModal";
+import { HowToPlayModal } from "@/components/modals/HowToPlayModal";
 import { useVaultWarsContract } from "@/hooks/useVaultWarsContract";
 import { useToast } from "@/hooks/use-toast";
 import { Home, Shuffle, Loader2 } from "lucide-react";
@@ -19,11 +20,22 @@ export default function JoinRoom() {
   const { toast } = useToast();
   const { isConnected } = useAccount();
   const { joinRoom } = useVaultWarsContract();
+  
   const [roomId, setRoomId] = useState("");
   const [vaultCode, setVaultCode] = useState<string[]>(["", "", "", ""]);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [showInviteMessage, setShowInviteMessage] = useState(false);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
+
+  // Show how to play modal first, then proceed with room joining
+  useEffect(() => {
+    setShowHowToPlay(true);
+  }, []);
+
+  const proceedWithJoining = () => {
+    setShowHowToPlay(false);
+  };
 
   // Auto-fill room ID from URL params
   useEffect(() => {
@@ -126,110 +138,113 @@ export default function JoinRoom() {
                 </div>
                 <h2 className="text-xl font-cyber font-bold text-accent">Connection Protocol</h2>
               </div>
-              {/* Room ID Input */}
-              <div>
-                <Label htmlFor="roomId" className="text-primary font-mono">
-                  Room ID
-                </Label>
-                <Input
-                  id="roomId"
-                  type="text"
-                  placeholder="Enter room ID"
-                  value={roomId}
-                  onChange={(e) => setRoomId(e.target.value)}
-                  className="cyber-border mt-2 font-mono"
-                />
-              </div>
-
-              {/* Vault Code Selection */}
-              <div>
-                <Label className="text-primary font-mono">
-                  Set Your Vault Code (4 digits)
-                </Label>
-                
-                {/* Vault Code Display */}
-                <div className="grid grid-cols-4 gap-2 mt-2 mb-4">
-                  {vaultCode.map((code, index) => (
-                    <div key={index} className="aspect-square">
-                      <div className="w-full h-full border border-primary/30 rounded-md flex items-center justify-center bg-card/50">
-                        {code ? (
-                          <span className="text-2xl font-mono text-primary">{code}</span>
-                        ) : (
-                          <span className="text-2xl text-muted-foreground">_</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+              
+              <div className="space-y-6">
+                {/* Room ID Input */}
+                <div>
+                  <Label htmlFor="roomId" className="text-primary font-mono">
+                    Room ID
+                  </Label>
+                  <Input
+                    id="roomId"
+                    type="text"
+                    placeholder="Enter room ID"
+                    value={roomId}
+                    onChange={(e) => setRoomId(e.target.value)}
+                    className="cyber-border mt-2 font-mono"
+                  />
                 </div>
 
-                {/* Number Keypad */}
-                <div className="grid grid-cols-5 gap-2 mb-4">
-                  {['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((number) => (
-                    <Button
-                      key={number}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const emptyIndex = vaultCode.findIndex(code => !code);
-                        if (emptyIndex !== -1 && isNumberAvailable(number)) {
-                          handleVaultCodeChange(emptyIndex, number);
-                        }
-                      }}
-                      disabled={!isNumberAvailable(number)}
-                      className="cyber-border aspect-square"
-                    >
-                      {number}
-                    </Button>
-                  ))}
-                </div>
-
-                <div className="flex justify-between">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setVaultCode(['', '', '', ''])}
-                  >
-                    Clear All
-                  </Button>
+                {/* Vault Code Selection */}
+                <div>
+                  <Label className="text-primary font-mono">
+                    Set Your Vault Code (4 digits)
+                  </Label>
                   
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={generateRandomCode}
-                  >
-                    <Shuffle className="w-4 h-4 mr-2" />
-                    Randomize Code
-                  </Button>
-                </div>
-              </div>
+                  {/* Vault Code Display */}
+                  <div className="grid grid-cols-4 gap-2 mt-2 mb-4">
+                    {vaultCode.map((code, index) => (
+                      <div key={index} className="aspect-square">
+                        <div className="w-full h-full border border-primary/30 rounded-md flex items-center justify-center bg-card/50">
+                          {code ? (
+                            <span className="text-2xl font-mono text-primary">{code}</span>
+                          ) : (
+                            <span className="text-2xl text-muted-foreground">_</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
 
-              {/* Vault Preview */}
-              <div className="text-center p-4 bg-card/30 rounded-lg border border-primary/20">
-                <h3 className="text-sm font-mono text-primary mb-2">Your Vault</h3>
-                <div className="text-2xl font-mono text-primary">
-                  {isVaultComplete 
-                    ? vaultCode.map(() => '●').join(' ')
-                    : '_ _ _ _'
-                  }
-                </div>
-              </div>
+                  {/* Number Keypad */}
+                  <div className="grid grid-cols-5 gap-2 mb-4">
+                    {['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((number) => (
+                      <Button
+                        key={number}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const emptyIndex = vaultCode.findIndex(code => !code);
+                          if (emptyIndex !== -1 && isNumberAvailable(number)) {
+                            handleVaultCodeChange(emptyIndex, number);
+                          }
+                        }}
+                        disabled={!isNumberAvailable(number)}
+                        className="cyber-border aspect-square"
+                      >
+                        {number}
+                      </Button>
+                    ))}
+                  </div>
 
-              {/* Join Button */}
-              <Button
-                onClick={handleJoinRoom}
-                disabled={!isFormValid || isConnecting}
-                className="w-full cyber-border bg-primary hover:bg-primary/90"
-                size="lg"
-              >
-                {isConnecting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Connecting...
-                  </>
-                ) : (
-                  "Join Room"
-                )}
-              </Button>
+                  <div className="flex justify-between">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setVaultCode(['', '', '', ''])}
+                    >
+                      Clear All
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={generateRandomCode}
+                    >
+                      <Shuffle className="w-4 h-4 mr-2" />
+                      Randomize Code
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Vault Preview */}
+                <div className="text-center p-4 bg-card/30 rounded-lg border border-primary/20">
+                  <h3 className="text-sm font-mono text-primary mb-2">Your Vault</h3>
+                  <div className="text-2xl font-mono text-primary">
+                    {isVaultComplete 
+                      ? vaultCode.map(() => '●').join(' ')
+                      : '_ _ _ _'
+                    }
+                  </div>
+                </div>
+
+                {/* Join Button */}
+                <Button
+                  onClick={handleJoinRoom}
+                  disabled={!isFormValid || isConnecting}
+                  className="w-full cyber-border bg-primary hover:bg-primary/90"
+                  size="lg"
+                >
+                  {isConnecting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    "Join Room"
+                  )}
+                </Button>
+              </div>
             </div>
           </CyberCard>
         </div>
@@ -238,6 +253,13 @@ export default function JoinRoom() {
       <ConnectWalletModal 
         open={showConnectModal} 
         onOpenChange={setShowConnectModal} 
+      />
+
+      <HowToPlayModal
+        isOpen={showHowToPlay}
+        onClose={() => navigate('/')}
+        onProceed={proceedWithJoining}
+        showProceedButton={true}
       />
     </div>
   );

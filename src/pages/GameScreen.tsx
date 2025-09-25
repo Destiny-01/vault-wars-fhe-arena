@@ -3,10 +3,11 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import MatrixBackground from "@/components/MatrixBackground";
 import { Navbar } from "@/components/layout/Navbar";
+import { HowToPlayModal } from "@/components/modals/HowToPlayModal";
 import { useGameApi } from "@/hooks/useGameApi";
 import { useToast } from "@/hooks/use-toast";
 import { ResultPosted } from "@/types/game";
-import { Copy, Loader2 } from "lucide-react";
+import { Copy, Loader2, HelpCircle } from "lucide-react";
 
 export default function GameScreen() {
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ export default function GameScreen() {
   }>({ isOpen: false });
   const [selectedDigits, setSelectedDigits] = useState<string[]>(['', '', '', '']);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   // Listen for result updates
   useEffect(() => {
@@ -230,6 +232,14 @@ export default function GameScreen() {
             >
               <Copy className="w-4 h-4" />
               Copy Invitation Link
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowHowToPlay(true)}
+              className="w-10 h-10 rounded-full border border-primary/30 bg-primary/10 hover:bg-primary/20 hover:shadow-primary/30 hover:shadow-lg transition-all animate-pulse"
+            >
+              <HelpCircle className="w-5 h-5 text-primary" />
             </Button>
           </div>
         </div>
@@ -479,6 +489,11 @@ export default function GameScreen() {
           </div>
         </div>
       )}
+
+      <HowToPlayModal
+        isOpen={showHowToPlay}
+        onClose={() => setShowHowToPlay(false)}
+      />
     </div>
   );
 }
