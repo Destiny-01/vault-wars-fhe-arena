@@ -95,29 +95,37 @@ export default function JoinRoom() {
   const isFormValid = roomId && isVaultComplete;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
+    <div className="min-h-screen matrix-bg relative">
       <Navbar />
       <MatrixBackground />
       
-      <div className="relative z-10 container mx-auto px-4 py-16">
-        <div className="max-w-md mx-auto">
+      <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
+        <div className="max-w-2xl mx-auto w-full">
           {showInviteMessage && (
-            <div className="mb-6 p-4 bg-primary/10 border border-primary/20 rounded-lg text-center">
+            <div className="mb-6 p-4 bg-primary/10 border border-primary/20 rounded-lg text-center cyber-border glow-primary animate-fade-in">
               <p className="text-primary font-medium">You've been invited to Vault Wars!</p>
               <p className="text-sm text-muted-foreground mt-1">Room ID autofilled from link</p>
             </div>
           )}
           
           {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-primary mb-4 font-mono">
+          <div className="text-center mb-8 animate-fade-in">
+            <h1 className="text-4xl md:text-5xl font-cyber font-bold text-accent text-glow mb-4">
               JOIN ROOM
             </h1>
-            <p className="text-muted-foreground">Enter the battlefield</p>
+            <p className="text-muted-foreground font-mono">
+              Enter the battlefield and breach enemy vaults
+            </p>
           </div>
 
-          <CyberCard className="p-6">
-            <div className="space-y-6">
+          <CyberCard className="animate-fade-in delay-300">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-8 h-8 bg-accent/20 rounded-lg flex items-center justify-center cyber-border">
+                  <span className="text-accent">#</span>
+                </div>
+                <h2 className="text-xl font-cyber font-bold text-accent">Connection Protocol</h2>
+              </div>
               {/* Room ID Input */}
               <div>
                 <Label htmlFor="roomId" className="text-primary font-mono">

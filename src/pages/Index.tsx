@@ -5,98 +5,113 @@ import VaultIcon from "@/components/VaultIcon";
 import { Navbar } from "@/components/layout/Navbar";
 import { useNavigate } from "react-router-dom";
 import vaultHeroImage from "@/assets/vault-hero.jpg";
+import { Shield, Zap, ExternalLink, Github } from "lucide-react";
 
 export default function Index() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
+    <div className="min-h-screen matrix-bg relative">
       <Navbar />
       <MatrixBackground />
       
-      <div className="relative z-10 container mx-auto px-4 py-16">
-        {/* Hero Section */}
-        <div className="text-center max-w-4xl mx-auto mb-16">
-          <h1 className="text-6xl md:text-8xl font-bold text-primary mb-6 font-mono">
-            VAULT WARS
-          </h1>
-          
-          {/* Hero Image */}
-          <div className="mb-8">
-            <img 
-              src={vaultHeroImage} 
-              alt="Cyberpunk Vault" 
-              className="w-full max-w-2xl mx-auto rounded-lg border border-primary/30 shadow-2xl"
-            />
+      {/* Hero Section */}
+      <section className="relative z-10 min-h-screen flex items-center justify-center px-4">
+        <div className="max-w-6xl mx-auto text-center">
+          {/* Main Title */}
+          <div className="mb-8 animate-fade-in">
+            <h1 
+              className="text-6xl md:text-8xl font-cyber font-bold text-glitch mb-4"
+              data-text="VAULT WARS"
+            >
+              VAULT WARS
+            </h1>
+            <div className="w-32 h-1 bg-gradient-to-r from-primary via-accent to-neon-green mx-auto rounded-full animate-pulse glow-primary" />
           </div>
 
-          <p className="text-xl text-muted-foreground mb-8 font-mono">
-            Breach your rival under encryption
+          {/* Hero Image */}
+          <div className="mb-8 animate-fade-in delay-300">
+            <div className="relative max-w-4xl mx-auto">
+              <img 
+                src={vaultHeroImage} 
+                alt="Cyberpunk Vault Lock"
+                className="w-full h-auto rounded-xl border border-primary/30 glow-primary"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent rounded-xl" />
+            </div>
+          </div>
+
+          {/* Tagline */}
+          <p className="text-xl md:text-2xl text-foreground/80 mb-12 font-mono animate-fade-in delay-500">
+            Battle for the vault. Breach your rival under encryption.
           </p>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-16 animate-fade-in delay-700">
             <Button
               onClick={() => navigate("/create-room")}
               size="lg"
-              className="cyber-border bg-primary hover:bg-primary/90 text-lg px-8 py-6"
+              className="btn-cyber-primary w-full sm:w-auto min-w-48"
             >
-              Create Room
+              <Shield className="w-5 h-5" />
+              Create a Room
             </Button>
+            
             <Button
               onClick={() => navigate("/join-room")}
               variant="outline"
               size="lg"
-              className="cyber-border text-lg px-8 py-6"
+              className="btn-cyber-accent w-full sm:w-auto min-w-48"
             >
-              Join Room
+              <Zap className="w-5 h-5" />
+              Join a Room
             </Button>
           </div>
-        </div>
 
-        {/* How It Works Section */}
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-primary mb-8 font-mono">
-            How It Works
-          </h2>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            <CyberCard className="text-center p-6">
-              <div className="w-16 h-16 mx-auto mb-4 bg-primary/20 rounded-lg flex items-center justify-center">
-                <VaultIcon />
-              </div>
-              <h3 className="text-lg font-bold text-primary mb-2">Set Your Vault</h3>
-              <p className="text-muted-foreground">
-                Choose your 4-digit vault code and place your wager
-              </p>
-            </CyberCard>
-
-            <CyberCard className="text-center p-6">
-              <div className="w-16 h-16 mx-auto mb-4 bg-accent/20 rounded-lg flex items-center justify-center">
-                <span className="text-2xl">⚡</span>
-              </div>
-              <h3 className="text-lg font-bold text-accent mb-2">Battle Phase</h3>
-              <p className="text-muted-foreground">
-                Take turns probing each other's encrypted vaults
-              </p>
-            </CyberCard>
-
-            <CyberCard className="text-center p-6">
-              <div className="w-16 h-16 mx-auto mb-4 bg-green-500/20 rounded-lg flex items-center justify-center">
-                <span className="text-2xl">🏆</span>
-              </div>
-              <h3 className="text-lg font-bold text-green-400 mb-2">Crack & Win</h3>
-              <p className="text-muted-foreground">
-                First to breach the vault claims the prize
-              </p>
-            </CyberCard>
+          {/* Vault Icons Demo */}
+          <div className="flex justify-center items-center gap-8 mb-16 animate-fade-in delay-1000">
+            <VaultIcon />
+            <div className="text-accent text-2xl animate-pulse">VS</div>
+            <VaultIcon />
           </div>
+
+          {/* How it Works Section */}
+          <section id="how-it-works" className="max-w-4xl mx-auto mb-16 animate-fade-in delay-1200">
+            <h2 className="text-3xl font-cyber font-bold text-primary mb-8 text-glow">
+              How It Works
+            </h2>
+            <div className="grid md:grid-cols-3 gap-8">
+              <CyberCard className="text-center p-6 hover-scale">
+                <div className="w-16 h-16 mx-auto mb-4 bg-primary/20 rounded-lg flex items-center justify-center cyber-border glow-primary">
+                  <Shield className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="text-lg font-mono font-semibold text-primary mb-2">Set Your Vault</h3>
+                <p className="text-muted-foreground">Choose your 4-digit vault code and place your wager</p>
+              </CyberCard>
+              
+              <CyberCard className="text-center p-6 hover-scale">
+                <div className="w-16 h-16 mx-auto mb-4 bg-accent/20 rounded-lg flex items-center justify-center cyber-border glow-accent">
+                  <Zap className="w-8 h-8 text-accent" />
+                </div>
+                <h3 className="text-lg font-mono font-semibold text-accent mb-2">Battle Phase</h3>
+                <p className="text-muted-foreground">Take turns probing each other's encrypted vaults</p>
+              </CyberCard>
+              
+              <CyberCard className="text-center p-6 hover-scale">
+                <div className="w-16 h-16 mx-auto mb-4 bg-neon-green/20 rounded-lg flex items-center justify-center cyber-border glow-success">
+                  <ExternalLink className="w-8 h-8 text-neon-green" />
+                </div>
+                <h3 className="text-lg font-mono font-semibold text-neon-green mb-2">Crack & Win</h3>
+                <p className="text-muted-foreground">First to breach the vault claims the prize</p>
+              </CyberCard>
+            </div>
+          </section>
         </div>
-      </div>
+      </section>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-primary/20 bg-background/80 backdrop-blur-sm mt-16">
-        <div className="container mx-auto px-4 py-8">
+      <footer className="relative z-10 border-t border-primary/20 bg-card/80 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground font-mono">
@@ -105,15 +120,16 @@ export default function Index() {
             </div>
             
             <div className="flex items-center gap-6">
-              <a href="#how-it-works" className="text-sm text-primary hover:text-accent transition-colors">
+              <a href="#how-it-works" className="text-sm text-primary hover:text-accent transition-colors story-link">
                 How it Works
               </a>
               <a 
                 href="https://github.com" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-sm text-primary hover:text-accent transition-colors"
+                className="flex items-center gap-2 text-sm text-primary hover:text-accent transition-colors story-link"
               >
+                <Github className="w-4 h-4" />
                 GitHub
               </a>
             </div>
