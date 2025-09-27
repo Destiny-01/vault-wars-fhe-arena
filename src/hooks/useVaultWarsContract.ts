@@ -1,14 +1,18 @@
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from './use-toast';
+import { Contract, ethers } from 'ethers';
+import { eventHandler, EventHandlers } from '@/services/eventHandler';
+import { encryptVault, encryptGuess, decryptResult } from '@/crypto';
 
-// Contract ABI - replace with actual ABI when available
+// Contract ABI - Will be replaced with actual ABI when provided
 const VAULT_WARS_ABI = [
+  // Read Functions
   {
-    inputs: [{ name: 'player', type: 'address' }],
-    name: 'getPlayerWins',
-    outputs: [{ name: 'wins', type: 'uint256' }],
+    inputs: [{ name: 'roomId', type: 'uint256' }],
+    name: 'roomExists',
+    outputs: [{ name: 'exists', type: 'bool' }],
     stateMutability: 'view',
     type: 'function',
   },
@@ -19,21 +23,63 @@ const VAULT_WARS_ABI = [
       { name: 'creator', type: 'address' },
       { name: 'opponent', type: 'address' },
       { name: 'wager', type: 'uint256' },
-      { name: 'status', type: 'uint8' },
-      { name: 'winner', type: 'address' }
+      { name: 'phase', type: 'uint8' },
+      { name: 'turnCount', type: 'uint256' },
+      { name: 'encryptedWinner', type: 'bytes' },
+      { name: 'createdAt', type: 'uint256' },
+      { name: 'lastActiveAt', type: 'uint256' }
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'roomId', type: 'uint256' },
+      { name: 'turnIndex', type: 'uint256' }
+    ],
+    name: 'getProbe',
+    outputs: [
+      { name: 'submitter', type: 'address' },
+      { name: 'encryptedGuess', type: 'bytes' },
+      { name: 'encryptedBreaches', type: 'bytes' },
+      { name: 'encryptedSignals', type: 'bytes' },
+      { name: 'isWinningProbe', type: 'bool' },
+      { name: 'timestamp', type: 'uint256' }
     ],
     stateMutability: 'view',
     type: 'function',
   },
   {
     inputs: [{ name: 'roomId', type: 'uint256' }],
-    name: 'roomExists',
-    outputs: [{ name: 'exists', type: 'bool' }],
+    name: 'getLastResultEncrypted',
+    outputs: [
+      { name: 'breaches', type: 'bytes' },
+      { name: 'signals', type: 'bytes' }
+    ],
     stateMutability: 'view',
     type: 'function',
   },
   {
-    inputs: [{ name: 'encryptedVault', type: 'bytes32' }],
+    inputs: [
+      { name: 'roomId', type: 'uint256' },
+      { name: 'player', type: 'address' }
+    ],
+    name: 'isPlayerTurn',
+    outputs: [{ name: 'isTurn', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'player', type: 'address' }],
+    name: 'getPlayerWins',
+    outputs: [{ name: 'wins', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  
+  // Write Functions
+  {
+    inputs: [{ name: 'encryptedVault', type: 'bytes' }],
     name: 'createRoom',
     outputs: [{ name: 'roomId', type: 'uint256' }],
     stateMutability: 'payable',
@@ -42,13 +88,135 @@ const VAULT_WARS_ABI = [
   {
     inputs: [
       { name: 'roomId', type: 'uint256' },
-      { name: 'encryptedVault', type: 'bytes32' }
+      { name: 'encryptedVault', type: 'bytes' }
     ],
     name: 'joinRoom',
     outputs: [],
     stateMutability: 'payable',
     type: 'function',
   },
+  {
+    inputs: [
+      { name: 'roomId', type: 'uint256' },
+      { name: 'encryptedGuess', type: 'bytes' }
+    ],
+    name: 'submitProbe',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'roomId', type: 'uint256' }],
+    name: 'cancelRoom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'roomId', type: 'uint256' }],
+    name: 'claimTimeout',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'roomId', type: 'uint256' }],
+    name: 'requestWinnerDecryption',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+
+  // Events
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'roomId', type: 'uint256' },
+      { indexed: true, name: 'creator', type: 'address' },
+      { indexed: false, name: 'wager', type: 'uint256' },
+      { indexed: false, name: 'token', type: 'address' }
+    ],
+    name: 'RoomCreated',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'roomId', type: 'uint256' },
+      { indexed: true, name: 'opponent', type: 'address' }
+    ],
+    name: 'RoomJoined',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'roomId', type: 'uint256' },
+      { indexed: true, name: 'who', type: 'address' }
+    ],
+    name: 'VaultSubmitted',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'roomId', type: 'uint256' },
+      { indexed: false, name: 'turnIndex', type: 'uint256' },
+      { indexed: true, name: 'submitter', type: 'address' }
+    ],
+    name: 'ProbeSubmitted',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'roomId', type: 'uint256' },
+      { indexed: false, name: 'turnIndex', type: 'uint256' },
+      { indexed: true, name: 'submitter', type: 'address' },
+      { indexed: false, name: 'isWin', type: 'bool' },
+      { indexed: false, name: 'signedResult', type: 'bytes' }
+    ],
+    name: 'ResultComputed',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'roomId', type: 'uint256' },
+      { indexed: false, name: 'requestId', type: 'uint256' }
+    ],
+    name: 'DecryptionRequested',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'roomId', type: 'uint256' },
+      { indexed: false, name: 'winner', type: 'address' },
+      { indexed: false, name: 'signature', type: 'bytes' }
+    ],
+    name: 'WinnerDecrypted',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'roomId', type: 'uint256' },
+      { indexed: false, name: 'winner', type: 'address' },
+      { indexed: false, name: 'amount', type: 'uint256' }
+    ],
+    name: 'GameFinished',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'roomId', type: 'uint256' },
+      { indexed: true, name: 'by', type: 'address' }
+    ],
+    name: 'RoomCancelled',
+    type: 'event',
+  }
 ] as const;
 
 // Contract address - replace with actual deployed address
@@ -60,27 +228,71 @@ export const contractConfig = {
   abi: VAULT_WARS_ABI,
 } as const;
 
-// Room status enum
-export enum RoomStatus {
-  WAITING = 0,
-  ACTIVE = 1,
+// Room phase enum
+export enum RoomPhase {
+  WAITING_FOR_JOIN = 0,
+  IN_PROGRESS = 1,
   COMPLETED = 2,
+  CANCELLED = 3,
 }
 
-// Room metadata type
+// Enhanced room metadata type
 export interface RoomMetadata {
   creator: string;
   opponent: string;
   wager: string;
-  status: RoomStatus;
-  winner: string;
+  phase: RoomPhase;
+  turnCount: number;
+  encryptedWinner?: string;
+  createdAt: number;
+  lastActiveAt: number;
+  winner?: string; // Decrypted winner when available
 }
 
-export function useVaultWarsContract() {
+// Probe metadata type
+export interface ProbeMetadata {
+  submitter: string;
+  encryptedGuess: string;
+  encryptedBreaches?: string;
+  encryptedSignals?: string;
+  isWinningProbe: boolean;
+  timestamp: number;
+  // Decrypted results (when available)
+  breaches?: number;
+  signals?: number;
+}
+
+export function useVaultWarsContract(eventHandlers?: EventHandlers) {
   const { address } = useAccount();
   const { writeContract } = useWriteContract();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [contract, setContract] = useState<Contract | null>(null);
+  const [roomCache, setRoomCache] = useState<Map<string, RoomMetadata>>(new Map());
+  const [probeCache, setProbeCache] = useState<Map<string, ProbeMetadata[]>>(new Map());
+
+  // Initialize contract and event handlers
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const contractInstance = new Contract(
+        VAULT_WARS_CONTRACT_ADDRESS,
+        VAULT_WARS_ABI,
+        provider
+      );
+      
+      setContract(contractInstance);
+      
+      // Initialize event handler
+      if (eventHandlers) {
+        eventHandler.initialize(contractInstance, eventHandlers);
+      }
+
+      return () => {
+        eventHandler.cleanup();
+      };
+    }
+  }, [eventHandlers]);
 
   // Read player wins
   const { data: playerWins, refetch: refetchWins } = useReadContract({
@@ -92,34 +304,53 @@ export function useVaultWarsContract() {
     },
   });
 
-  // Helper function to encrypt vault code (placeholder)
-  const encryptVaultCode = (code: number[]): string => {
-    // TODO: Implement proper encryption
-    return `0x${code.join('')}${'0'.repeat(56)}`;
-  };
+  // Cache management
+  const updateRoomCache = useCallback((roomId: string, roomData: RoomMetadata) => {
+    setRoomCache(prev => new Map(prev).set(roomId, roomData));
+  }, []);
+
+  const updateProbeCache = useCallback((roomId: string, probes: ProbeMetadata[]) => {
+    setProbeCache(prev => new Map(prev).set(roomId, probes));
+  }, []);
 
   // Read Functions
   const getRoom = async (roomId: string): Promise<RoomMetadata | null> => {
     try {
+      // Check cache first
+      const cached = roomCache.get(roomId);
+      if (cached) return cached;
+
       setIsLoading(true);
       
-      // TODO: Replace with actual contract read
-      // const result = await readContract({
-      //   ...contractConfig,
-      //   functionName: 'getRoom',
-      //   args: [BigInt(roomId)],
-      // });
-      
-      // Mock implementation
-      const mockRoom: RoomMetadata = {
-        creator: '0x1234567890123456789012345678901234567890',
-        opponent: '0x0987654321098765432109876543210987654321',
-        wager: '0.1',
-        status: RoomStatus.WAITING,
-        winner: '0x0000000000000000000000000000000000000000',
+      if (!contract) {
+        // Mock implementation for development
+        const mockRoom: RoomMetadata = {
+          creator: '0x1234567890123456789012345678901234567890',
+          opponent: '0x0987654321098765432109876543210987654321',
+          wager: '0.1',
+          phase: RoomPhase.WAITING_FOR_JOIN,
+          turnCount: 0,
+          createdAt: Date.now() - 300000, // 5 minutes ago
+          lastActiveAt: Date.now() - 60000, // 1 minute ago
+        };
+        updateRoomCache(roomId, mockRoom);
+        return mockRoom;
+      }
+
+      const result = await contract.getRoom(BigInt(roomId));
+      const roomData: RoomMetadata = {
+        creator: result.creator,
+        opponent: result.opponent,
+        wager: formatEther(result.wager),
+        phase: result.phase,
+        turnCount: result.turnCount.toNumber(),
+        encryptedWinner: result.encryptedWinner,
+        createdAt: result.createdAt.toNumber() * 1000,
+        lastActiveAt: result.lastActiveAt.toNumber() * 1000,
       };
       
-      return mockRoom;
+      updateRoomCache(roomId, roomData);
+      return roomData;
     } catch (error) {
       console.error('Error fetching room:', error);
       toast({
@@ -135,32 +366,94 @@ export function useVaultWarsContract() {
 
   const roomExists = async (roomId: string): Promise<boolean> => {
     try {
-      // TODO: Replace with actual contract read
-      // const result = await readContract({
-      //   ...contractConfig,
-      //   functionName: 'roomExists',
-      //   args: [BigInt(roomId)],
-      // });
-      
-      // Mock implementation
-      return roomId.length === 4 && !isNaN(Number(roomId));
+      if (!contract) {
+        // Mock implementation for development
+        return roomId.length === 4 && !isNaN(Number(roomId));
+      }
+
+      const result = await contract.roomExists(BigInt(roomId));
+      return result;
     } catch (error) {
       console.error('Error checking room existence:', error);
       return false;
     }
   };
 
+  const getProbe = async (roomId: string, turnIndex: number): Promise<ProbeMetadata | null> => {
+    try {
+      if (!contract) {
+        // Mock implementation
+        return {
+          submitter: '0x1234567890123456789012345678901234567890',
+          encryptedGuess: btoa(`guess_${turnIndex}_encrypted`),
+          encryptedBreaches: btoa(`breaches_${turnIndex}`),
+          encryptedSignals: btoa(`signals_${turnIndex}`),
+          isWinningProbe: false,
+          timestamp: Date.now(),
+          breaches: Math.floor(Math.random() * 5),
+          signals: Math.floor(Math.random() * 4),
+        };
+      }
+
+      const result = await contract.getProbe(BigInt(roomId), BigInt(turnIndex));
+      return {
+        submitter: result.submitter,
+        encryptedGuess: result.encryptedGuess,
+        encryptedBreaches: result.encryptedBreaches,
+        encryptedSignals: result.encryptedSignals,
+        isWinningProbe: result.isWinningProbe,
+        timestamp: result.timestamp.toNumber() * 1000,
+      };
+    } catch (error) {
+      console.error('Error fetching probe:', error);
+      return null;
+    }
+  };
+
+  const getLastResultEncrypted = async (roomId: string): Promise<{ breaches: string; signals: string } | null> => {
+    try {
+      if (!contract) {
+        return {
+          breaches: btoa('encrypted_breaches'),
+          signals: btoa('encrypted_signals'),
+        };
+      }
+
+      const result = await contract.getLastResultEncrypted(BigInt(roomId));
+      return {
+        breaches: result.breaches,
+        signals: result.signals,
+      };
+    } catch (error) {
+      console.error('Error fetching encrypted result:', error);
+      return null;
+    }
+  };
+
+  const isPlayerTurn = async (roomId: string, playerAddress: string): Promise<boolean> => {
+    try {
+      if (!contract) {
+        // Mock: alternating turns
+        return true;
+      }
+
+      const result = await contract.isPlayerTurn(BigInt(roomId), playerAddress);
+      return result;
+    } catch (error) {
+      console.error('Error checking player turn:', error);
+      return false;
+    }
+  };
+
   const getPlayerWins = async (playerAddress: string): Promise<number> => {
     try {
-      // TODO: Replace with actual contract read
-      // const result = await readContract({
-      //   ...contractConfig,
-      //   functionName: 'getPlayerWins',
-      //   args: [playerAddress as `0x${string}`],
-      // });
-      
-      // Mock implementation
-      return Math.floor(Math.random() * 10);
+      if (!contract) {
+        // Mock implementation
+        return Math.floor(Math.random() * 10);
+      }
+
+      const result = await contract.getPlayerWins(playerAddress);
+      return result.toNumber();
     } catch (error) {
       console.error('Error fetching player wins:', error);
       return 0;
@@ -180,35 +473,53 @@ export function useVaultWarsContract() {
 
     try {
       setIsLoading(true);
-      const encryptedVault = encryptVaultCode(vaultCode);
+      
+      // Encrypt vault using crypto module
+      const encryptedVault = await encryptVault(vaultCode);
       
       toast({
-        title: "Creating room...",
-        description: "Processing transaction on blockchain.",
+        title: "⚡ Encrypting vault...",
+        description: "Securing your code with FHE encryption.",
       });
 
-      // TODO: Replace with actual contract write
-      // const hash = await writeContract({
-      //   ...contractConfig,
-      //   functionName: 'createRoom',
-      //   args: [encryptedVault as `0x${string}`],
-      //   value: parseEther(wager),
-      // });
-      
-      // Mock implementation
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate tx time
-      const roomId = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+      if (!contract) {
+        // Mock implementation for development
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const roomId = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+        
+        toast({
+          title: "🏦 Room created successfully!",
+          description: `Room ID: ${roomId}. Share this with your opponent.`,
+        });
+        
+        return roomId;
+      }
+
+      // Real contract call
+      const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+      const contractWithSigner = contract.connect(signer);
+      const tx = await contractWithSigner.createRoom(encryptedVault, {
+        value: parseEther(wager),
+      });
       
       toast({
-        title: "Room created successfully!",
-        description: `Room ID: ${roomId}. Share this with your opponent.`,
+        title: "📡 Transaction submitted...",
+        description: "Waiting for blockchain confirmation.",
       });
+
+      const receipt = await tx.wait();
+      
+      // Extract room ID from event
+      const roomCreatedEvent = receipt.events?.find(
+        (event: any) => event.event === 'RoomCreated'
+      );
+      const roomId = roomCreatedEvent?.args?.roomId?.toString() || '0000';
       
       return roomId;
     } catch (error: any) {
       console.error('Error creating room:', error);
       toast({
-        title: "Failed to create room",
+        title: "❌ Failed to create room",
         description: error.message || "Transaction failed or was rejected.",
         variant: "destructive",
       });
@@ -230,7 +541,6 @@ export function useVaultWarsContract() {
 
     try {
       setIsLoading(true);
-      const encryptedVault = encryptVaultCode(vaultCode);
       
       // Check if room exists first
       const exists = await roomExists(roomId);
@@ -238,31 +548,232 @@ export function useVaultWarsContract() {
         throw new Error('Room does not exist');
       }
       
+      // Encrypt vault using crypto module
+      const encryptedVault = await encryptVault(vaultCode);
+      
       toast({
-        title: "Joining room...",
-        description: "Processing transaction on blockchain.",
+        title: "⚡ Encrypting vault...",
+        description: "Securing your code with FHE encryption.",
       });
 
-      // TODO: Replace with actual contract write
-      // const hash = await writeContract({
-      //   ...contractConfig,
-      //   functionName: 'joinRoom',
-      //   args: [BigInt(roomId), encryptedVault as `0x${string}`],
-      //   value: parseEther(wager),
-      // });
-      
-      // Mock implementation
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate tx time
+      if (!contract) {
+        // Mock implementation for development
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        toast({
+          title: "🎯 Joined room successfully!",
+          description: `Connected to room ${roomId}. Battle begins!`,
+        });
+        return;
+      }
+
+      // Real contract call
+      const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+      const contractWithSigner = contract.connect(signer);
+      const tx = await contractWithSigner.joinRoom(BigInt(roomId), encryptedVault, {
+        value: parseEther(wager),
+      });
       
       toast({
-        title: "Joined room successfully!",
+        title: "📡 Transaction submitted...",
+        description: "Joining the vault battle.",
+      });
+
+      await tx.wait();
+      
+      toast({
+        title: "🎯 Joined room successfully!",
         description: `Connected to room ${roomId}. Battle begins!`,
       });
     } catch (error: any) {
       console.error('Error joining room:', error);
       toast({
-        title: "Failed to join room",
+        title: "❌ Failed to join room",
         description: error.message || "Transaction failed or room doesn't exist.",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const submitProbe = async (roomId: string, guessCode: number[]): Promise<void> => {
+    if (!address) {
+      toast({
+        title: "Wallet not connected",
+        description: "Please connect your wallet to submit a probe.",
+        variant: "destructive",
+      });
+      throw new Error('Wallet not connected');
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // Encrypt guess using crypto module
+      const encryptedGuess = await encryptGuess(guessCode);
+      
+      toast({
+        title: "🔍 Launching probe...",
+        description: "Encrypting your guess and submitting to blockchain.",
+      });
+
+      if (!contract) {
+        // Mock implementation for development
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        toast({
+          title: "🚀 Probe launched!",
+          description: "Your encrypted guess has been submitted.",
+        });
+        return;
+      }
+
+      // Real contract call
+      const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+      const contractWithSigner = contract.connect(signer);
+      const tx = await contractWithSigner.submitProbe(BigInt(roomId), encryptedGuess);
+      
+      await tx.wait();
+      
+      toast({
+        title: "🚀 Probe launched!",
+        description: "Your encrypted guess has been submitted.",
+      });
+    } catch (error: any) {
+      console.error('Error submitting probe:', error);
+      toast({
+        title: "❌ Failed to submit probe",
+        description: error.message || "Transaction failed.",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const cancelRoom = async (roomId: string): Promise<void> => {
+    if (!address) {
+      throw new Error('Wallet not connected');
+    }
+
+    try {
+      setIsLoading(true);
+      
+      if (!contract) {
+        // Mock implementation
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        toast({
+          title: "🚫 Room cancelled",
+          description: "The game room has been cancelled and wager refunded.",
+        });
+        return;
+      }
+
+      const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+      const contractWithSigner = contract.connect(signer);
+      const tx = await contractWithSigner.cancelRoom(BigInt(roomId));
+      await tx.wait();
+      
+      toast({
+        title: "🚫 Room cancelled",
+        description: "The game room has been cancelled and wager refunded.",
+      });
+    } catch (error: any) {
+      console.error('Error cancelling room:', error);
+      toast({
+        title: "❌ Failed to cancel room",
+        description: error.message || "Transaction failed.",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const claimTimeout = async (roomId: string): Promise<void> => {
+    if (!address) {
+      throw new Error('Wallet not connected');
+    }
+
+    try {
+      setIsLoading(true);
+      
+      if (!contract) {
+        // Mock implementation
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        toast({
+          title: "⏰ Timeout claimed",
+          description: "You win by timeout! Wager has been transferred.",
+        });
+        return;
+      }
+
+      const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+      const contractWithSigner = contract.connect(signer);
+      const tx = await contractWithSigner.claimTimeout(BigInt(roomId));
+      await tx.wait();
+      
+      toast({
+        title: "⏰ Timeout claimed",
+        description: "You win by timeout! Wager has been transferred.",
+      });
+    } catch (error: any) {
+      console.error('Error claiming timeout:', error);
+      toast({
+        title: "❌ Failed to claim timeout",
+        description: error.message || "Transaction failed.",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const requestWinnerDecryption = async (roomId: string): Promise<void> => {
+    if (!address) {
+      throw new Error('Wallet not connected');
+    }
+
+    try {
+      setIsLoading(true);
+      
+      toast({
+        title: "🔓 Requesting decryption...",
+        description: "Asking gateway to decrypt the winner.",
+      });
+
+      if (!contract) {
+        // Mock implementation
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        toast({
+          title: "🔍 Decryption requested",
+          description: "Gateway is processing winner decryption.",
+        });
+        return;
+      }
+
+      const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+      const contractWithSigner = contract.connect(signer);
+      const tx = await contractWithSigner.requestWinnerDecryption(BigInt(roomId));
+      await tx.wait();
+      
+      toast({
+        title: "🔍 Decryption requested",
+        description: "Gateway is processing winner decryption.",
+      });
+    } catch (error: any) {
+      console.error('Error requesting decryption:', error);
+      toast({
+        title: "❌ Failed to request decryption",
+        description: error.message || "Transaction failed.",
         variant: "destructive",
       });
       throw error;
@@ -275,15 +786,29 @@ export function useVaultWarsContract() {
     // State
     isLoading,
     playerWins: playerWins ? Number(playerWins) : 0,
+    contract,
+    
+    // Cache
+    roomCache,
+    probeCache,
+    updateRoomCache,
+    updateProbeCache,
     
     // Read Functions
     getRoom,
     roomExists,
+    getProbe,
+    getLastResultEncrypted,
+    isPlayerTurn,
     getPlayerWins,
     
     // Write Functions
     createRoom,
     joinRoom,
+    submitProbe,
+    cancelRoom,
+    claimTimeout,
+    requestWinnerDecryption,
     
     // Utils
     refetchWins,

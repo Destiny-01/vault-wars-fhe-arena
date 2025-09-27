@@ -1,181 +1,322 @@
+/**
+ * Privacy Console - Shows encrypted data and signature verification
+ * 
+ * This component displays all ciphertexts and signed payloads for audit/demo purposes.
+ * It allows users to verify the integrity of FHE operations and gateway signatures.
+ */
+
 import React, { useState } from 'react';
-import { Terminal, Eye, EyeOff, Shield, CheckCircle, XCircle } from 'lucide-react';
-import { CyberButton } from '@/components/ui/cyber-button';
-import { CyberCard, CyberCardContent, CyberCardHeader, CyberCardTitle } from '@/components/ui/cyber-card';
 import { cn } from '@/lib/utils';
+import { CyberCard } from '@/components/ui/cyber-card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Copy, Shield, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { verifySignature } from '@/crypto';
 
 interface PrivacyConsoleProps {
   isOpen: boolean;
   onToggle: () => void;
   className?: string;
+  // Encrypted data to display
+  creatorCiphertext?: string;
+  opponentCiphertext?: string;
+  lastResultCipher?: string;
+  coprocessorSignature?: string;
+  // Additional audit data
+  roomId?: string;
+  currentTurn?: number;
 }
 
-const PrivacyConsole: React.FC<PrivacyConsoleProps> = ({
+interface VerificationStatus {
+  isVerifying: boolean;
+  isVerified: boolean | null;
+  message: string;
+}
+
+function PrivacyConsole({
   isOpen,
   onToggle,
-  className
-}) => {
-  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'verified' | 'failed'>('idle');
+  className,
+  creatorCiphertext,
+  opponentCiphertext,
+  lastResultCipher,
+  coprocessorSignature,
+  roomId,
+  currentTurn = 0,
+}: PrivacyConsoleProps) {
+  const { toast } = useToast();
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>({
+    isVerifying: false,
+    isVerified: null,
+    message: '',
+  });
 
-  // Placeholder ciphertext data - TODO: Replace with real FHE data
-  const mockData = {
-    creatorCiphertext: 'CIPHER_MTIzNDU2Nzg5MGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=',
-    opponentCiphertext: 'CIPHER_YWJjZGVmZ2hpams5ODc2NTQzMjEwbW5vcHFyc3R1dnd4eXpBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWg==',
-    lastResultCipher: 'RESULT_dGVzdGluZ19yZXN1bHRfY2lwaGVydGV4dF9kYXRhXzEyMzQ1Njc4OTA=',
-    coprocessorSignature: 'SIG_0x1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-    publicKey: 'PUB_0x987654321fedcba0987654321fedcba0987654321fedcba0987654321fedcba0'
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "📋 Copied",
+        description: `${label} copied to clipboard`,
+      });
+    } catch (error) {
+      toast({
+        title: "❌ Copy failed",
+        description: "Could not copy to clipboard",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleVerifySignature = async () => {
-    setVerificationStatus('verifying');
-    
-    // Simulate verification delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Placeholder verification - TODO: Replace with real crypto verification
-    const isValid = mockData.coprocessorSignature.includes('SIG_0x');
-    setVerificationStatus(isValid ? 'verified' : 'failed');
+    if (!coprocessorSignature) {
+      toast({
+        title: "No signature",
+        description: "No coprocessor signature available to verify",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setVerificationStatus({
+      isVerifying: true,
+      isVerified: null,
+      message: 'Verifying signature...',
+    });
+
+    try {
+      // Simulate verification delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Create payload for verification
+      const payload = JSON.stringify({
+        roomId,
+        currentTurn,
+        lastResultCipher,
+        timestamp: Date.now(),
+      });
+
+      const isValid = verifySignature(
+        'gateway_public_key_placeholder', // TODO: Use real gateway public key
+        payload,
+        coprocessorSignature
+      );
+
+      setVerificationStatus({
+        isVerifying: false,
+        isVerified: isValid,
+        message: isValid 
+          ? 'Signature verified ✓ Gateway authenticity confirmed'
+          : 'Signature invalid ✗ Verification failed',
+      });
+
+      toast({
+        title: isValid ? "✅ Signature verified" : "❌ Signature invalid",
+        description: isValid 
+          ? "Gateway signature is authentic"
+          : "Signature verification failed",
+        variant: isValid ? "default" : "destructive",
+      });
+    } catch (error) {
+      setVerificationStatus({
+        isVerifying: false,
+        isVerified: false,
+        message: 'Verification error occurred',
+      });
+
+      toast({
+        title: "❌ Verification error",
+        description: "Could not verify signature",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const formatCiphertext = (ciphertext: string | undefined, maxLength = 64) => {
+    if (!ciphertext) return 'No data';
+    if (ciphertext.length <= maxLength) return ciphertext;
+    return `${ciphertext.slice(0, maxLength)}...`;
   };
 
   if (!isOpen) {
     return (
       <div className={cn("fixed bottom-4 right-4 z-50", className)}>
-        <CyberButton
-          variant="ghost"
-          size="sm"
+        <Button
           onClick={onToggle}
-          className="cyber-border bg-card/90 backdrop-blur-sm"
+          variant="outline"
+          size="sm"
+          className="bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 rounded-full p-3"
         >
-          <Terminal className="w-4 h-4" />
-          Privacy Console
-        </CyberButton>
+          <Shield className="h-4 w-4" />
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className={cn("fixed bottom-4 right-4 w-96 z-50 animate-slide-up", className)}>
-      <CyberCard className="bg-card/95 backdrop-blur-sm border-accent/50">
-        <CyberCardHeader>
-          <div className="flex items-center justify-between">
-            <CyberCardTitle className="flex items-center gap-2 text-accent">
-              <Terminal className="w-5 h-5" />
-              Privacy Console
-            </CyberCardTitle>
-            <CyberButton
-              variant="ghost"
-              size="sm"
-              onClick={onToggle}
-            >
-              <EyeOff className="w-4 h-4" />
-            </CyberButton>
+    <div className={cn("fixed bottom-4 right-4 w-96 z-50", className)}>
+      <CyberCard className="p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            <h3 className="text-lg font-bold text-primary">Privacy Console</h3>
           </div>
-        </CyberCardHeader>
+          <Button
+            onClick={onToggle}
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-primary"
+          >
+            <EyeOff className="h-4 w-4" />
+          </Button>
+        </div>
 
-        <CyberCardContent className="space-y-4">
-          {/* Ciphertext Data */}
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-mono text-accent mb-1 block">
-                Creator Ciphertext:
-              </label>
-              <div className="p-2 bg-background/50 rounded border border-primary/20 font-mono text-xs text-foreground/80 break-all">
-                {mockData.creatorCiphertext}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-mono text-accent mb-1 block">
-                Opponent Ciphertext:
-              </label>
-              <div className="p-2 bg-background/50 rounded border border-primary/20 font-mono text-xs text-foreground/80 break-all">
-                {mockData.opponentCiphertext}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-mono text-accent mb-1 block">
-                Last Result Cipher:
-              </label>
-              <div className="p-2 bg-background/50 rounded border border-primary/20 font-mono text-xs text-foreground/80 break-all">
-                {mockData.lastResultCipher}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-mono text-accent mb-1 block">
-                Coprocessor Signature:
-              </label>
-              <div className="p-2 bg-background/50 rounded border border-primary/20 font-mono text-xs text-foreground/80 break-all">
-                {mockData.coprocessorSignature}
-              </div>
+        <div className="space-y-4 max-h-96 overflow-y-auto">
+          {/* Room Info */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-muted-foreground">ROOM STATUS</h4>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>Room ID: {roomId || 'N/A'}</div>
+              <div>Turn: {currentTurn}</div>
             </div>
           </div>
 
-          {/* Signature Verification */}
-          <div className="pt-4 border-t border-primary/20">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono text-accent">
-                Signature Verification:
-              </span>
-              {verificationStatus === 'verified' && (
-                <CheckCircle className="w-4 h-4 text-neon-green" />
-              )}
-              {verificationStatus === 'failed' && (
-                <XCircle className="w-4 h-4 text-destructive" />
-              )}
+          {/* Creator Vault Ciphertext */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-muted-foreground">CREATOR VAULT</h4>
+            <div className="bg-background/50 p-2 rounded border font-mono text-xs break-all">
+              {formatCiphertext(creatorCiphertext)}
             </div>
-
-            <CyberButton
-              variant="outline"
-              size="sm"
-              onClick={handleVerifySignature}
-              disabled={verificationStatus === 'verifying'}
-              className="w-full"
-            >
-              {verificationStatus === 'verifying' ? (
-                <>
-                  <div className="animate-spin">⚡</div>
-                  Verifying...
-                </>
-              ) : verificationStatus === 'verified' ? (
-                <>
-                  <CheckCircle className="w-4 h-4" />
-                  Verified
-                </>
-              ) : verificationStatus === 'failed' ? (
-                <>
-                  <XCircle className="w-4 h-4" />
-                  Verification Failed
-                </>
-              ) : (
-                <>
-                  <Shield className="w-4 h-4" />
-                  Verify Signature
-                </>
-              )}
-            </CyberButton>
-
-            {verificationStatus === 'verified' && (
-              <div className="mt-2 p-2 bg-neon-green/10 border border-neon-green/30 rounded text-xs font-mono text-neon-green">
-                ✓ Coprocessor signature valid
-              </div>
-            )}
-
-            {verificationStatus === 'failed' && (
-              <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded text-xs font-mono text-destructive">
-                ✗ Invalid or corrupted signature
-              </div>
+            {creatorCiphertext && (
+              <Button
+                onClick={() => copyToClipboard(creatorCiphertext, 'Creator vault ciphertext')}
+                variant="outline"
+                size="sm"
+                className="w-full h-8"
+              >
+                <Copy className="h-3 w-3 mr-1" />
+                Copy
+              </Button>
             )}
           </div>
 
-          {/* Debug Info */}
-          <div className="pt-4 border-t border-primary/20">
-            <p className="text-xs text-muted-foreground font-mono">
-              TODO: Wire to real FHE encryption and blockchain coprocessor
-            </p>
+          {/* Opponent Vault Ciphertext */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-muted-foreground">OPPONENT VAULT</h4>
+            <div className="bg-background/50 p-2 rounded border font-mono text-xs break-all">
+              {formatCiphertext(opponentCiphertext)}
+            </div>
+            {opponentCiphertext && (
+              <Button
+                onClick={() => copyToClipboard(opponentCiphertext, 'Opponent vault ciphertext')}
+                variant="outline"
+                size="sm"
+                className="w-full h-8"
+              >
+                <Copy className="h-3 w-3 mr-1" />
+                Copy
+              </Button>
+            )}
           </div>
-        </CyberCardContent>
+
+          {/* Last Result Ciphertext */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-muted-foreground">LAST RESULT</h4>
+            <div className="bg-background/50 p-2 rounded border font-mono text-xs break-all">
+              {formatCiphertext(lastResultCipher)}
+            </div>
+            {lastResultCipher && (
+              <Button
+                onClick={() => copyToClipboard(lastResultCipher, 'Last result ciphertext')}
+                variant="outline"
+                size="sm"
+                className="w-full h-8"
+              >
+                <Copy className="h-3 w-3 mr-1" />
+                Copy
+              </Button>
+            )}
+          </div>
+
+          {/* Coprocessor Signature */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-muted-foreground">COPROCESSOR SIGNATURE</h4>
+            <div className="bg-background/50 p-2 rounded border font-mono text-xs break-all">
+              {formatCiphertext(coprocessorSignature)}
+            </div>
+            
+            {coprocessorSignature && (
+              <div className="space-y-2">
+                <Button
+                  onClick={() => copyToClipboard(coprocessorSignature, 'Coprocessor signature')}
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-8"
+                >
+                  <Copy className="h-3 w-3 mr-1" />
+                  Copy Signature
+                </Button>
+                
+                <Button
+                  onClick={handleVerifySignature}
+                  disabled={verificationStatus.isVerifying}
+                  variant="default"
+                  size="sm"
+                  className="w-full h-8"
+                >
+                  {verificationStatus.isVerifying ? (
+                    <>
+                      <div className="animate-spin h-3 w-3 mr-1 border border-current border-t-transparent rounded-full" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="h-3 w-3 mr-1" />
+                      Verify Signature
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {/* Verification Status */}
+            {verificationStatus.message && (
+              <div className="flex items-center gap-2 p-2 rounded bg-background/30">
+                {verificationStatus.isVerified === true && (
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                )}
+                {verificationStatus.isVerified === false && (
+                  <XCircle className="h-4 w-4 text-red-500" />
+                )}
+                <span className="text-xs">{verificationStatus.message}</span>
+              </div>
+            )}
+          </div>
+
+          {/* FHE Integration Note */}
+          <div className="space-y-2 pt-4 border-t border-border/50">
+            <h4 className="text-sm font-semibold text-muted-foreground">FHE INTEGRATION</h4>
+            <div className="text-xs text-muted-foreground">
+              <Badge variant="outline" className="mb-2">Demo Mode</Badge>
+              <p>
+                This console shows encrypted data that will be processed by TFHE-WASM 
+                when fully integrated. All computations remain confidential on-chain.
+              </p>
+            </div>
+          </div>
+
+          {/* TODO Comments for developers */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="space-y-1 pt-2 border-t border-border/50">
+              <h4 className="text-xs font-semibold text-muted-foreground">DEV NOTES</h4>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>• TODO: Integrate real TFHE-WASM encryption</p>
+                <p>• TODO: Use real gateway public key for verification</p>
+                <p>• TODO: Connect to blockchain coprocessor events</p>
+              </div>
+            </div>
+          )}
+        </div>
       </CyberCard>
     </div>
   );
