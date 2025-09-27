@@ -12,14 +12,27 @@ import { ConnectWalletModal } from "@/components/wallet/ConnectWalletModal";
 import { RoomCreatedModal } from "@/components/modals/RoomCreatedModal";
 import { HowToPlayModal } from "@/components/modals/HowToPlayModal";
 import { useVaultWarsContract } from "@/hooks/useVaultWarsContract";
+import { useContractEvents } from "@/services/eventHandler";
+import { initializeCrypto } from "@/crypto";
 import { useToast } from "@/hooks/use-toast";
 import { Home, Shuffle } from "lucide-react";
 
 export default function CreateRoom() {
   const navigate = useNavigate();
-  const { isConnected } = useAccount();
-  const { createRoom } = useVaultWarsContract();
+  const { address, isConnected } = useAccount();
   const { toast } = useToast();
+  
+  // Contract integration with event handlers
+  const eventHandlers = useContractEvents({
+    onRoomCreated: (event) => {
+      if (event.creator.toLowerCase() === address?.toLowerCase()) {
+        setCreatedRoomId(event.roomId);
+        setShowRoomCreatedModal(true);
+      }
+    },
+  });
+  
+  const { createRoom, isLoading } = useVaultWarsContract(eventHandlers);
   
   const [wager, setWager] = useState("");
   const [vaultCode, setVaultCode] = useState<string[]>(["", "", "", ""]);
@@ -27,6 +40,12 @@ export default function CreateRoom() {
   const [showRoomCreatedModal, setShowRoomCreatedModal] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [createdRoomId, setCreatedRoomId] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Initialize crypto on component mount
+  useEffect(() => {
+    initializeCrypto().catch(console.error);
+  }, []);
 
   // Show how to play modal first, then proceed with room creation
   useEffect(() => {
@@ -46,191 +65,186 @@ export default function CreateRoom() {
   };
 
   const generateRandomCode = () => {
-    const numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    const numbers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
     const shuffled = numbers.sort(() => Math.random() - 0.5);
-    setVaultCode(shuffled.slice(0, 4));
+    const randomCode = shuffled.slice(0, 4).map(String);
+    setVaultCode(randomCode);
   };
 
-  const isNumberAvailable = (number: string) => {
-    return !vaultCode.includes(number);
+  const clearVaultCode = () => {
+    setVaultCode(["", "", "", ""]);
   };
+
+  const isVaultComplete = vaultCode.every(digit => digit !== "");
+  const isWagerValid = wager !== "" && parseFloat(wager) > 0;
+  const isFormValid = isVaultComplete && isWagerValid;
 
   const handleCreateRoom = async () => {
+    // Show How to Play modal first if user clicked create room directly
+    if (showHowToPlay) {
+      setShowHowToPlay(true);
+      return;
+    }
+
     if (!isConnected) {
       setShowConnectModal(true);
       return;
     }
 
-    if (!wager || !isVaultComplete) {
+    if (!isFormValid) {
       toast({
-        title: "Please complete the form",
-        description: "Enter a wager amount and set your 4-digit vault code.",
+        title: "❌ Invalid input",
+        description: "Please enter a valid wager and complete 4-digit vault code.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const code = vaultCode.map(Number);
-      const roomId = await createRoom(code, wager);
+      setIsCreating(true);
       
-      setCreatedRoomId(roomId);
-      setShowRoomCreatedModal(true);
+      // Convert string array to number array
+      const vaultNumbers = vaultCode.map(Number);
       
-      // Auto-navigate to game after showing modal
-      setTimeout(() => {
-        navigate(`/game?roomId=${roomId}&playerAddress=creator&wager=${wager}`);
-      }, 3000);
-    } catch (error) {
       toast({
-        title: "Failed to create room",
-        description: "Please try again.",
-        variant: "destructive",
+        title: "🏦 Creating vault room...",
+        description: "Encrypting your vault and submitting to blockchain.",
       });
+
+      const roomId = await createRoom(vaultNumbers, wager);
+      
+      // Room created modal will be shown via event handler
+    } catch (error: any) {
+      console.error('Failed to create room:', error);
+      // Error toast already shown by contract hook
+    } finally {
+      setIsCreating(false);
     }
   };
 
-  const isVaultComplete = vaultCode.every(code => code !== "");
-  const isFormValid = wager && isVaultComplete;
+  const handleCloseRoomCreatedModal = () => {
+    setShowRoomCreatedModal(false);
+    setCreatedRoomId("");
+  };
+
+  const handleGoToGame = () => {
+    navigate(`/game?roomId=${createdRoomId}&playerAddress=${address}&opponentAddress=&wager=${wager}`);
+  };
 
   return (
-    <div className="min-h-screen matrix-bg relative">
-      <Navbar />
+    <div className="relative min-h-screen overflow-hidden bg-black">
       <MatrixBackground />
       
-      <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
-        <div className="max-w-2xl mx-auto w-full">
-          {/* Header */}
-          <div className="mb-8 text-center animate-fade-in">
-            <h1 className="text-4xl md:text-5xl font-cyber font-bold text-primary text-glow mb-4">
-              CREATE ROOM
-            </h1>
-            <p className="text-muted-foreground font-mono">
-              Set up your vault and prepare for battle
-            </p>
-          </div>
-
-          <CyberCard className="animate-fade-in delay-300">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center cyber-border">
-                  <span className="text-primary">⚡</span>
-                </div>
-                <h2 className="text-xl font-cyber font-bold text-primary">Battle Configuration</h2>
+      <Navbar />
+      
+      <div className="relative z-10 container mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto">
+          <CyberCard className="p-8">
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="text-center space-y-2">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-transparent">
+                  ⚡ Create Vault Room ⚡
+                </h1>
+                <p className="text-muted-foreground">
+                  Set your wager and secure your 4-digit vault code
+                </p>
               </div>
-              <div className="space-y-8">
-                {/* Wager Input */}
-                <div>
-                  <Label htmlFor="wager" className="text-primary font-mono">
-                    Enter Wager Amount (ETH)
-                  </Label>
-                  <Input
-                    id="wager"
-                    type="number"
-                    step="0.001"
-                    min="0"
-                    placeholder="0.100"
-                    value={wager}
-                    onChange={(e) => setWager(e.target.value)}
-                    className="input-cyber mt-2 text-lg"
-                  />
-                  <p className="text-xs text-muted-foreground mt-2 font-mono">
-                    Winner takes the vault. Choose wisely.
-                  </p>
-                </div>
 
-                {/* Vault Code Selection */}
-                <div>
-                  <Label className="text-primary font-mono mb-3 block">
-                    Set Your Vault Code (4 digits)
-                  </Label>
-                  {/* Vault Code Display */}
-                  <div className="grid grid-cols-4 gap-4 mt-2 mb-6">
-                    {vaultCode.map((code, index) => (
-                      <div key={index} className="text-center">
-                        <div className="cyber-border rounded-lg p-4 h-20 flex items-center justify-center bg-card/50 mb-2">
-                          {code ? (
-                            <span className="text-3xl font-mono text-primary animate-pulse glow-primary">{code}</span>
-                          ) : (
-                            <span className="text-3xl text-muted-foreground">_</span>
-                          )}
-                        </div>
-                        <span className="text-xs font-mono text-muted-foreground">
-                          Digit {index + 1}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+              {/* Wager Input */}
+              <div className="space-y-2">
+                <Label htmlFor="wager" className="text-lg font-semibold">
+                  Wager Amount (ETH)
+                </Label>
+                <Input
+                  id="wager"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.1"
+                  value={wager}
+                  onChange={(e) => setWager(e.target.value)}
+                  className="text-lg h-12"
+                />
+              </div>
 
-                  {/* Number Keypad */}
-                  <div className="grid grid-cols-5 gap-2 mb-6">
-                    {['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((number) => (
-                      <Button
-                        key={number}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const emptyIndex = vaultCode.findIndex(code => !code);
-                          if (emptyIndex !== -1 && isNumberAvailable(number)) {
-                            handleVaultCodeChange(emptyIndex, number);
-                          }
-                        }}
-                        disabled={!isNumberAvailable(number)}
-                        className="btn-cyber h-12 text-lg font-mono"
-                      >
-                        {number}
-                      </Button>
-                    ))}
-                  </div>
-
-                  <div className="flex justify-between items-center mb-6">
+              {/* Vault Code Section */}
+              <div className="space-y-4">
+                <Label className="text-lg font-semibold">Your Vault Code</Label>
+                
+                {/* Vault Display */}
+                <VaultDisplay 
+                  isOwner={true}
+                  vaultDigits={vaultCode}
+                  masked={false}
+                  breachedIndices={[]}
+                  label="Your Vault"
+                />
+                
+                {/* Number Keypad */}
+                <div className="grid grid-cols-5 gap-2">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setVaultCode(['', '', '', ''])}
-                      className="text-muted-foreground hover:text-primary"
+                      key={num}
+                      variant="outline"
+                      onClick={() => {
+                        const emptyIndex = vaultCode.findIndex(digit => digit === "");
+                        if (emptyIndex !== -1 && !vaultCode.includes(String(num))) {
+                          handleVaultCodeChange(emptyIndex, String(num));
+                        }
+                      }}
+                      disabled={vaultCode.includes(String(num))}
+                      className="h-12 text-lg font-bold"
                     >
-                      Clear All
+                      {num}
                     </Button>
-                    
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={generateRandomCode}
-                      className="text-muted-foreground hover:text-primary"
-                    >
-                      <Shuffle className="w-4 h-4 mr-2" />
-                      Randomize Code
-                    </Button>
-                    
-                    <span className="text-xs font-mono text-muted-foreground">
-                      {vaultCode.filter(code => code).length}/4 selected
-                    </span>
-                  </div>
+                  ))}
                 </div>
 
-                {/* Vault Preview */}
-                <div className="text-center p-6 bg-card/30 rounded-lg cyber-border">
-                  <h3 className="text-lg font-mono text-primary mb-4">Vault Preview</h3>
-                  <div className="text-4xl font-mono text-primary mb-4">
-                    {isVaultComplete 
-                      ? vaultCode.map(() => '●').join(' ')
-                      : '_ _ _ _'
-                    }
-                  </div>
-                  <p className="text-sm text-muted-foreground font-mono">
-                    {isVaultComplete ? "Vault secured and ready" : "Configure your vault code"}
-                  </p>
+                {/* Utility Buttons */}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={clearVaultCode}
+                    className="flex-1"
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={generateRandomCode}
+                    className="flex-1"
+                  >
+                    <Shuffle className="w-4 h-4 mr-2" />
+                    Random
+                  </Button>
                 </div>
+              </div>
 
-                {/* Create Button */}
+              {/* Action Buttons */}
+              <div className="space-y-4">
                 <Button
                   onClick={handleCreateRoom}
-                  disabled={!isFormValid}
-                  className="btn-cyber-primary w-full"
-                  size="lg"
+                  disabled={!isFormValid || isCreating || isLoading}
+                  className="w-full h-12 text-lg font-bold"
                 >
-                  <span className="text-lg">Create Room</span>
+                  {isCreating || isLoading ? (
+                    <>
+                      <div className="animate-spin mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                      Creating Room...
+                    </>
+                  ) : (
+                    "⚡ Create Vault Room ⚡"
+                  )}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/")}
+                  className="w-full"
+                >
+                  <Home className="w-4 h-4 mr-2" />
+                  Return Home
                 </Button>
               </div>
             </div>
@@ -238,6 +252,7 @@ export default function CreateRoom() {
         </div>
       </div>
 
+      {/* Modals */}
       <ConnectWalletModal 
         open={showConnectModal} 
         onOpenChange={setShowConnectModal} 
@@ -245,13 +260,13 @@ export default function CreateRoom() {
       
       <RoomCreatedModal
         open={showRoomCreatedModal}
-        onOpenChange={setShowRoomCreatedModal}
+        onOpenChange={handleCloseRoomCreatedModal}
         roomId={createdRoomId}
       />
-
+      
       <HowToPlayModal
         isOpen={showHowToPlay}
-        onClose={() => navigate('/')}
+        onClose={() => setShowHowToPlay(false)}
         onProceed={proceedWithCreation}
         showProceedButton={true}
       />

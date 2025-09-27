@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import MatrixBackground from "@/components/MatrixBackground";
 import { Navbar } from "@/components/layout/Navbar";
 import { HowToPlayModal } from "@/components/modals/HowToPlayModal";
-import { useGameApi } from "@/hooks/useGameApi";
+import PrivacyConsole from "@/components/game/PrivacyConsole";
+import { useVaultWarsContract } from "@/hooks/useVaultWarsContract";
+import { useContractEvents } from "@/services/eventHandler";
 import { useToast } from "@/hooks/use-toast";
-import { ResultPosted } from "@/types/game";
 import { Copy, Loader2, HelpCircle } from "lucide-react";
 
 export default function GameScreen() {
@@ -20,7 +21,59 @@ export default function GameScreen() {
   const opponentAddress = searchParams.get('opponentAddress') || '';
   const wager = searchParams.get('wager') || '';
 
-  const { roomState, loading, submitProbe, onResultPosted } = useGameApi(roomId);
+  // Contract integration with comprehensive event handlers
+  const eventHandlers = useContractEvents({
+    onProbeSubmitted: (event) => {
+      // Handle probe submissions and update UI accordingly
+      if (event.submitter.toLowerCase() === playerAddress.toLowerCase()) {
+        // Player's probe submitted
+        setSelectedDigits(['', '', '', '']);
+        setIsSubmitting(false);
+      } else {
+        // Opponent's probe submitted
+        toast({
+          title: "🔍 Opponent probe detected",
+          description: "Your rival is analyzing your vault...",
+        });
+      }
+    },
+    onResultComputed: (event) => {
+      // Handle FHE computation results
+      if (event.signedResult) {
+        toast({
+          title: "📊 Probe analyzed",
+          description: `${event.signedResult.breaches}B ${event.signedResult.signals}S`,
+        });
+        
+        // Check for win condition
+        if (event.signedResult.breaches >= 4) {
+          setGameEndModal({
+            isOpen: true,
+            outcome: event.submitter.toLowerCase() === playerAddress.toLowerCase() ? 'won' : 'lost',
+            claimed: false
+          });
+        }
+      }
+    },
+    onWinnerDecrypted: (event) => {
+      const isWinner = event.winner.toLowerCase() === playerAddress.toLowerCase();
+      setGameEndModal({
+        isOpen: true,
+        outcome: isWinner ? 'won' : 'lost',
+        claimed: false
+      });
+    },
+    onGameFinished: (event) => {
+      toast({
+        title: "🎉 Game completed!",
+        description: `Winner: ${event.winner === playerAddress ? 'You' : 'Opponent'} | Payout: ${event.amount} ETH`,
+      });
+      
+      setTimeout(() => navigate('/'), 3000);
+    }
+  });
+
+  const contract = useVaultWarsContract(eventHandlers);
 
   const [gameEndModal, setGameEndModal] = useState<{
     isOpen: boolean;
@@ -30,24 +83,23 @@ export default function GameScreen() {
   const [selectedDigits, setSelectedDigits] = useState<string[]>(['', '', '', '']);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [showPrivacyConsole, setShowPrivacyConsole] = useState(false);
 
-  // Listen for result updates
+  // Load room data on mount
   useEffect(() => {
-    const cleanup = onResultPosted((result: ResultPosted) => {
-      console.log('Result received:', result);
-      
-      // Check for win condition (4 breached)
-      if (result.signedPlainResult.breached >= 4) {
-        setGameEndModal({
-          isOpen: true,
-          outcome: 'won',
-          claimed: false
-        });
-      }
-    });
-
-    return cleanup;
-  }, [onResultPosted]);
+    if (roomId) {
+      contract.getRoom(roomId).then(roomData => {
+        if (!roomData) {
+          toast({
+            title: "❌ Room not found",
+            description: "This room does not exist or has expired.",
+            variant: "destructive",
+          });
+          navigate('/');
+        }
+      });
+    }
+  }, [roomId, contract, toast, navigate]);
 
   const handleDigitSelect = (digit: string) => {
     const emptyIndex = selectedDigits.findIndex(d => !d);
@@ -191,7 +243,7 @@ export default function GameScreen() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [canSubmit]);
 
-  if (loading) {
+  if (contract.isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
         <Navbar />
