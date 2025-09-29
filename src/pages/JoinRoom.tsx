@@ -10,10 +10,10 @@ import VaultDisplay from "@/components/game/VaultDisplay";
 import { Navbar } from "@/components/layout/Navbar";
 import { ConnectWalletModal } from "@/components/wallet/ConnectWalletModal";
 import { HowToPlayModal } from "@/components/modals/HowToPlayModal";
-import { useVaultWarsContract } from "@/hooks/useVaultWarsContract";
+import { useVaultWarsContract, RoomPhase, type RoomMetadata } from "@/hooks/useVaultWarsContract";
 import { useContractEvents } from "@/services/eventHandler";
 import { useToast } from "@/hooks/use-toast";
-import { Home, Shuffle, Loader2 } from "lucide-react";
+import { Home, Shuffle, Loader2, AlertCircle, Check } from "lucide-react";
 import { initializeFHE } from "@/lib/fhe";
 
 export default function JoinRoom() {
@@ -39,7 +39,7 @@ export default function JoinRoom() {
     },
   });
 
-  const { joinRoom, roomExists, isLoading } =
+  const { joinRoom, getRoom, isLoading } =
     useVaultWarsContract(eventHandlers);
 
   const [roomId, setRoomId] = useState("");
@@ -48,6 +48,12 @@ export default function JoinRoom() {
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [showInviteMessage, setShowInviteMessage] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [roomData, setRoomData] = useState<RoomMetadata | null>(null);
+  const [roomValidation, setRoomValidation] = useState<{
+    isValid: boolean;
+    isChecking: boolean;
+    error?: string;
+  }>({ isValid: false, isChecking: false });
 
   // Initialize crypto on component mount
   useEffect(() => {
@@ -69,8 +75,89 @@ export default function JoinRoom() {
     if (urlRoomId) {
       setRoomId(urlRoomId);
       setShowInviteMessage(true);
+      checkRoomValidity(urlRoomId);
     }
   }, [searchParams]);
+
+  // Check room validity function
+  const checkRoomValidity = async (roomIdToCheck: string) => {
+    if (!roomIdToCheck.trim()) {
+      setRoomValidation({ isValid: false, isChecking: false });
+      setRoomData(null);
+      return;
+    }
+
+    setRoomValidation({ isValid: false, isChecking: true });
+
+    try {
+      const room = await getRoom(roomIdToCheck);
+      
+      if (!room) {
+        setRoomValidation({
+          isValid: false,
+          isChecking: false,
+          error: "Room not found"
+        });
+        setRoomData(null);
+        return;
+      }
+
+      // Check if room.creator is a valid address (not zero address)
+      if (room.creator === "0x0000000000000000000000000000000000000000") {
+        setRoomValidation({
+          isValid: false,
+          isChecking: false,
+          error: "Invalid room"
+        });
+        setRoomData(null);
+        return;
+      }
+
+      // Check room phase - only allow joining if waiting for join
+      if (room.phase !== RoomPhase.WAITING_FOR_JOIN) {
+        const phaseText = room.phase === RoomPhase.IN_PROGRESS ? "in progress" : 
+                         room.phase === RoomPhase.COMPLETED ? "completed" : "cancelled";
+        setRoomValidation({
+          isValid: false,
+          isChecking: false,
+          error: `Room is ${phaseText}`
+        });
+        setRoomData(null);
+        return;
+      }
+
+      // Check if user is trying to join their own room
+      if (room.creator.toLowerCase() === address?.toLowerCase()) {
+        setRoomValidation({
+          isValid: false,
+          isChecking: false,
+          error: "Cannot join your own room"
+        });
+        setRoomData(null);
+        return;
+      }
+
+      setRoomValidation({ isValid: true, isChecking: false });
+      setRoomData(room);
+    } catch (error) {
+      console.error("Error checking room:", error);
+      setRoomValidation({
+        isValid: false,
+        isChecking: false,
+        error: "Failed to check room"
+      });
+      setRoomData(null);
+    }
+  };
+
+  // Check room validity when roomId changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      checkRoomValidity(roomId);
+    }, 500); // Debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [roomId, address]);
 
   const handleVaultCodeChange = (index: number, value: string) => {
     if (value === "" || (/^\d$/.test(value) && !vaultCode.includes(value))) {
@@ -92,8 +179,7 @@ export default function JoinRoom() {
   };
 
   const isVaultComplete = vaultCode.every((digit) => digit !== "");
-  const isRoomIdValid = roomId.length === 4 && /^\d{4}$/.test(roomId);
-  const isFormValid = isVaultComplete && isRoomIdValid;
+  const isFormValid = isVaultComplete && roomValidation.isValid && roomData;
 
   const handleJoinRoom = async () => {
     // Show How to Play modal first if user clicked join room directly
@@ -110,8 +196,9 @@ export default function JoinRoom() {
     if (!isFormValid) {
       toast({
         title: "❌ Invalid input",
-        description:
-          "Please enter a valid room ID and complete 4-digit vault code.",
+        description: !roomValidation.isValid 
+          ? `Room issue: ${roomValidation.error || "Invalid room"}`
+          : "Please complete your 4-digit vault code.",
         variant: "destructive",
       });
       return;
@@ -119,17 +206,6 @@ export default function JoinRoom() {
 
     try {
       setIsJoining(true);
-
-      // Check if room exists first
-      const exists = await roomExists(roomId);
-      if (!exists) {
-        toast({
-          title: "❌ Room not found",
-          description: `Room ${roomId} does not exist or has expired.`,
-          variant: "destructive",
-        });
-        return;
-      }
 
       toast({
         title: "🔐 Joining vault battle...",
@@ -139,7 +215,7 @@ export default function JoinRoom() {
       // Convert string array to number array
       const vaultNumbers = vaultCode.map(Number);
 
-      await joinRoom(roomId, vaultNumbers, "0.1"); // TODO: Get wager from room metadata
+      await joinRoom(roomId, vaultNumbers, roomData!.wager);
 
       // Navigation will be handled by event handler
     } catch (error: any) {
@@ -184,16 +260,57 @@ export default function JoinRoom() {
                 <Label htmlFor="roomId" className="text-lg font-semibold">
                   Room ID
                 </Label>
-                <Input
-                  id="roomId"
-                  type="text"
-                  placeholder="Enter 4-digit room ID"
-                  value={roomId}
-                  onChange={(e) => setRoomId(e.target.value)}
-                  maxLength={4}
-                  className="text-lg h-12 text-center"
-                />
+                <div className="relative">
+                  <Input
+                    id="roomId"
+                    type="text"
+                    placeholder="Enter room ID"
+                    value={roomId}
+                    onChange={(e) => setRoomId(e.target.value)}
+                    onBlur={() => checkRoomValidity(roomId)}
+                    className="text-lg h-12 text-center pr-10"
+                  />
+                  {roomValidation.isChecking && (
+                    <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                  )}
+                  {!roomValidation.isChecking && roomId && (
+                    roomValidation.isValid ? (
+                      <Check className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-green-500" />
+                    ) : (
+                      <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-red-500" />
+                    )
+                  )}
+                </div>
+                {roomValidation.error && !roomValidation.isChecking && (
+                  <p className="text-sm text-red-500">{roomValidation.error}</p>
+                )}
               </div>
+
+              {/* Room Details */}
+              {roomData && roomValidation.isValid && (
+                <div className="bg-primary/10 border border-primary/30 rounded-lg p-4 space-y-3">
+                  <h3 className="font-semibold text-primary">Room Details</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Creator:</span>
+                      <span className="font-mono text-xs">{roomData.creator.slice(0, 6)}...{roomData.creator.slice(-4)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Wager:</span>
+                      <span className="font-semibold">{roomData.wager} ETH</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Status:</span>
+                      <span className="text-yellow-500">Waiting for opponent</span>
+                    </div>
+                  </div>
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3 mt-3">
+                    <p className="text-yellow-500 text-sm font-medium">
+                      💰 You will be charged {roomData.wager} ETH to join this battle
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Vault Code Section */}
               <div className="space-y-4">
@@ -257,13 +374,18 @@ export default function JoinRoom() {
               <div className="space-y-4">
                 <Button
                   onClick={handleJoinRoom}
-                  disabled={!isFormValid || isJoining || isLoading}
+                  disabled={!isFormValid || isJoining || isLoading || roomValidation.isChecking}
                   className="w-full h-12 text-lg font-bold"
                 >
                   {isJoining || isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Joining Battle...
+                    </>
+                  ) : roomValidation.isChecking ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Checking Room...
                     </>
                   ) : (
                     "🎯 Join Vault Battle 🎯"
