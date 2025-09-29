@@ -12,16 +12,16 @@ import { ConnectWalletModal } from "@/components/wallet/ConnectWalletModal";
 import { HowToPlayModal } from "@/components/modals/HowToPlayModal";
 import { useVaultWarsContract } from "@/hooks/useVaultWarsContract";
 import { useContractEvents } from "@/services/eventHandler";
-import { initializeCrypto } from "@/crypto";
 import { useToast } from "@/hooks/use-toast";
 import { Home, Shuffle, Loader2 } from "lucide-react";
+import { initializeFHE } from "@/lib/fhe";
 
 export default function JoinRoom() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { address, isConnected } = useAccount();
   const { toast } = useToast();
-  
+
   // Contract integration with event handlers
   const eventHandlers = useContractEvents({
     onRoomJoined: (event) => {
@@ -30,15 +30,18 @@ export default function JoinRoom() {
           title: "🎯 Battle begins!",
           description: "Successfully joined the vault war. Good luck!",
         });
-        
+
         // Navigate to game screen with room details
-        navigate(`/game?roomId=${roomId}&playerAddress=${address}&opponentAddress=${event.roomId}&wager=0.1`);
+        navigate(
+          `/game?roomId=${roomId}&playerAddress=${address}&opponentAddress=${event.roomId}&wager=0.1`
+        );
       }
     },
   });
-  
-  const { joinRoom, roomExists, isLoading } = useVaultWarsContract(eventHandlers);
-  
+
+  const { joinRoom, roomExists, isLoading } =
+    useVaultWarsContract(eventHandlers);
+
   const [roomId, setRoomId] = useState("");
   const [vaultCode, setVaultCode] = useState<string[]>(["", "", "", ""]);
   const [isJoining, setIsJoining] = useState(false);
@@ -48,7 +51,7 @@ export default function JoinRoom() {
 
   // Initialize crypto on component mount
   useEffect(() => {
-    initializeCrypto().catch(console.error);
+    initializeFHE().catch(console.error);
   }, []);
 
   // Show how to play modal first, then proceed with room joining
@@ -62,7 +65,7 @@ export default function JoinRoom() {
 
   // Auto-fill room ID from URL params
   useEffect(() => {
-    const urlRoomId = searchParams.get('room') || searchParams.get('roomId');
+    const urlRoomId = searchParams.get("room") || searchParams.get("roomId");
     if (urlRoomId) {
       setRoomId(urlRoomId);
       setShowInviteMessage(true);
@@ -88,7 +91,7 @@ export default function JoinRoom() {
     setVaultCode(["", "", "", ""]);
   };
 
-  const isVaultComplete = vaultCode.every(digit => digit !== "");
+  const isVaultComplete = vaultCode.every((digit) => digit !== "");
   const isRoomIdValid = roomId.length === 4 && /^\d{4}$/.test(roomId);
   const isFormValid = isVaultComplete && isRoomIdValid;
 
@@ -107,7 +110,8 @@ export default function JoinRoom() {
     if (!isFormValid) {
       toast({
         title: "❌ Invalid input",
-        description: "Please enter a valid room ID and complete 4-digit vault code.",
+        description:
+          "Please enter a valid room ID and complete 4-digit vault code.",
         variant: "destructive",
       });
       return;
@@ -115,7 +119,7 @@ export default function JoinRoom() {
 
     try {
       setIsJoining(true);
-      
+
       // Check if room exists first
       const exists = await roomExists(roomId);
       if (!exists) {
@@ -134,12 +138,12 @@ export default function JoinRoom() {
 
       // Convert string array to number array
       const vaultNumbers = vaultCode.map(Number);
-      
-      await joinRoom(roomId, vaultNumbers, '0.1'); // TODO: Get wager from room metadata
-      
+
+      await joinRoom(roomId, vaultNumbers, "0.1"); // TODO: Get wager from room metadata
+
       // Navigation will be handled by event handler
     } catch (error: any) {
-      console.error('Failed to join room:', error);
+      console.error("Failed to join room:", error);
       // Error toast already shown by contract hook
     } finally {
       setIsJoining(false);
@@ -149,9 +153,9 @@ export default function JoinRoom() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-black">
       <MatrixBackground />
-      
+
       <Navbar />
-      
+
       <div className="relative z-10 container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
           <CyberCard className="p-8">
@@ -194,16 +198,16 @@ export default function JoinRoom() {
               {/* Vault Code Section */}
               <div className="space-y-4">
                 <Label className="text-lg font-semibold">Your Vault Code</Label>
-                
+
                 {/* Vault Display */}
-                <VaultDisplay 
+                <VaultDisplay
                   isOwner={true}
                   vaultDigits={vaultCode}
                   masked={false}
                   breachedIndices={[]}
                   label="Your Vault"
                 />
-                
+
                 {/* Number Keypad */}
                 <div className="grid grid-cols-5 gap-2">
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
@@ -211,8 +215,13 @@ export default function JoinRoom() {
                       key={num}
                       variant="outline"
                       onClick={() => {
-                        const emptyIndex = vaultCode.findIndex(digit => digit === "");
-                        if (emptyIndex !== -1 && !vaultCode.includes(String(num))) {
+                        const emptyIndex = vaultCode.findIndex(
+                          (digit) => digit === ""
+                        );
+                        if (
+                          emptyIndex !== -1 &&
+                          !vaultCode.includes(String(num))
+                        ) {
                           handleVaultCodeChange(emptyIndex, String(num));
                         }
                       }}
@@ -276,11 +285,11 @@ export default function JoinRoom() {
       </div>
 
       {/* Modals */}
-      <ConnectWalletModal 
-        open={showConnectModal} 
-        onOpenChange={setShowConnectModal} 
+      <ConnectWalletModal
+        open={showConnectModal}
+        onOpenChange={setShowConnectModal}
       />
-      
+
       <HowToPlayModal
         isOpen={showHowToPlay}
         onClose={() => setShowHowToPlay(false)}

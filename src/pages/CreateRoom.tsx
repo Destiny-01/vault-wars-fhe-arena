@@ -13,15 +13,15 @@ import { RoomCreatedModal } from "@/components/modals/RoomCreatedModal";
 import { HowToPlayModal } from "@/components/modals/HowToPlayModal";
 import { useVaultWarsContract } from "@/hooks/useVaultWarsContract";
 import { useContractEvents } from "@/services/eventHandler";
-import { initializeCrypto } from "@/crypto";
 import { useToast } from "@/hooks/use-toast";
 import { Home, Shuffle } from "lucide-react";
+import { initializeFHE } from "@/lib/fhe";
 
 export default function CreateRoom() {
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
   const { toast } = useToast();
-  
+
   // Contract integration with event handlers
   const eventHandlers = useContractEvents({
     onRoomCreated: (event) => {
@@ -31,9 +31,9 @@ export default function CreateRoom() {
       }
     },
   });
-  
+
   const { createRoom, isLoading } = useVaultWarsContract(eventHandlers);
-  
+
   const [wager, setWager] = useState("");
   const [vaultCode, setVaultCode] = useState<string[]>(["", "", "", ""]);
   const [showConnectModal, setShowConnectModal] = useState(false);
@@ -44,7 +44,7 @@ export default function CreateRoom() {
 
   // Initialize crypto on component mount
   useEffect(() => {
-    initializeCrypto().catch(console.error);
+    initializeFHE().catch(console.error);
   }, []);
 
   // Show how to play modal first, then proceed with room creation
@@ -75,7 +75,7 @@ export default function CreateRoom() {
     setVaultCode(["", "", "", ""]);
   };
 
-  const isVaultComplete = vaultCode.every(digit => digit !== "");
+  const isVaultComplete = vaultCode.every((digit) => digit !== "");
   const isWagerValid = wager !== "" && parseFloat(wager) > 0;
   const isFormValid = isVaultComplete && isWagerValid;
 
@@ -94,7 +94,8 @@ export default function CreateRoom() {
     if (!isFormValid) {
       toast({
         title: "❌ Invalid input",
-        description: "Please enter a valid wager and complete 4-digit vault code.",
+        description:
+          "Please enter a valid wager and complete 4-digit vault code.",
         variant: "destructive",
       });
       return;
@@ -102,20 +103,20 @@ export default function CreateRoom() {
 
     try {
       setIsCreating(true);
-      
+
       // Convert string array to number array
       const vaultNumbers = vaultCode.map(Number);
-      
+
       toast({
         title: "🏦 Creating vault room...",
         description: "Encrypting your vault and submitting to blockchain.",
       });
 
       const roomId = await createRoom(vaultNumbers, wager);
-      
+
       // Room created modal will be shown via event handler
     } catch (error: any) {
-      console.error('Failed to create room:', error);
+      console.error("Failed to create room:", error);
       // Error toast already shown by contract hook
     } finally {
       setIsCreating(false);
@@ -128,15 +129,17 @@ export default function CreateRoom() {
   };
 
   const handleGoToGame = () => {
-    navigate(`/game?roomId=${createdRoomId}&playerAddress=${address}&opponentAddress=&wager=${wager}`);
+    navigate(
+      `/game?roomId=${createdRoomId}&playerAddress=${address}&opponentAddress=&wager=${wager}`
+    );
   };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-black">
       <MatrixBackground />
-      
+
       <Navbar />
-      
+
       <div className="relative z-10 container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
           <CyberCard className="p-8">
@@ -171,16 +174,16 @@ export default function CreateRoom() {
               {/* Vault Code Section */}
               <div className="space-y-4">
                 <Label className="text-lg font-semibold">Your Vault Code</Label>
-                
+
                 {/* Vault Display */}
-                <VaultDisplay 
+                <VaultDisplay
                   isOwner={true}
                   vaultDigits={vaultCode}
                   masked={false}
                   breachedIndices={[]}
                   label="Your Vault"
                 />
-                
+
                 {/* Number Keypad */}
                 <div className="grid grid-cols-5 gap-2">
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
@@ -188,8 +191,13 @@ export default function CreateRoom() {
                       key={num}
                       variant="outline"
                       onClick={() => {
-                        const emptyIndex = vaultCode.findIndex(digit => digit === "");
-                        if (emptyIndex !== -1 && !vaultCode.includes(String(num))) {
+                        const emptyIndex = vaultCode.findIndex(
+                          (digit) => digit === ""
+                        );
+                        if (
+                          emptyIndex !== -1 &&
+                          !vaultCode.includes(String(num))
+                        ) {
                           handleVaultCodeChange(emptyIndex, String(num));
                         }
                       }}
@@ -253,17 +261,17 @@ export default function CreateRoom() {
       </div>
 
       {/* Modals */}
-      <ConnectWalletModal 
-        open={showConnectModal} 
-        onOpenChange={setShowConnectModal} 
+      <ConnectWalletModal
+        open={showConnectModal}
+        onOpenChange={setShowConnectModal}
       />
-      
+
       <RoomCreatedModal
         open={showRoomCreatedModal}
         onOpenChange={handleCloseRoomCreatedModal}
         roomId={createdRoomId}
       />
-      
+
       <HowToPlayModal
         isOpen={showHowToPlay}
         onClose={() => setShowHowToPlay(false)}

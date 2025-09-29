@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import vaultHeroImage from "@/assets/vault-hero.jpg";
 import { Shield, Zap, ExternalLink, Github } from "lucide-react";
 
+
 export default function Index() {
   const navigate = useNavigate();
 

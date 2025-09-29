@@ -16,10 +16,10 @@ export default function GameScreen() {
   const { toast } = useToast();
 
   // Extract room details from URL
-  const roomId = searchParams.get('roomId') || '';
-  const playerAddress = searchParams.get('playerAddress') || '';
-  const opponentAddress = searchParams.get('opponentAddress') || '';
-  const wager = searchParams.get('wager') || '';
+  const roomId = searchParams.get("roomId") || "";
+  const playerAddress = searchParams.get("playerAddress") || "";
+  const opponentAddress = searchParams.get("opponentAddress") || "";
+  const wager = searchParams.get("wager") || "";
 
   // Contract integration with comprehensive event handlers
   const eventHandlers = useContractEvents({
@@ -27,7 +27,7 @@ export default function GameScreen() {
       // Handle probe submissions and update UI accordingly
       if (event.submitter.toLowerCase() === playerAddress.toLowerCase()) {
         // Player's probe submitted
-        setSelectedDigits(['', '', '', '']);
+        setSelectedDigits(["", "", "", ""]);
         setIsSubmitting(false);
       } else {
         // Opponent's probe submitted
@@ -44,65 +44,77 @@ export default function GameScreen() {
           title: "📊 Probe analyzed",
           description: `${event.signedResult.breaches}B ${event.signedResult.signals}S`,
         });
-        
+
         // Check for win condition
         if (event.signedResult.breaches >= 4) {
           setGameEndModal({
             isOpen: true,
-            outcome: event.submitter.toLowerCase() === playerAddress.toLowerCase() ? 'won' : 'lost',
-            claimed: false
+            outcome:
+              event.submitter.toLowerCase() === playerAddress.toLowerCase()
+                ? "won"
+                : "lost",
+            claimed: false,
           });
         }
       }
     },
     onWinnerDecrypted: (event) => {
-      const isWinner = event.winner.toLowerCase() === playerAddress.toLowerCase();
+      const isWinner =
+        event.winner.toLowerCase() === playerAddress.toLowerCase();
       setGameEndModal({
         isOpen: true,
-        outcome: isWinner ? 'won' : 'lost',
-        claimed: false
+        outcome: isWinner ? "won" : "lost",
+        claimed: false,
       });
     },
     onGameFinished: (event) => {
       toast({
         title: "🎉 Game completed!",
-        description: `Winner: ${event.winner === playerAddress ? 'You' : 'Opponent'} | Payout: ${event.amount} ETH`,
+        description: `Winner: ${
+          event.winner === playerAddress ? "You" : "Opponent"
+        } | Payout: ${event.amount} ETH`,
       });
-      
-      setTimeout(() => navigate('/'), 3000);
-    }
+
+      setTimeout(() => navigate("/"), 3000);
+    },
   });
 
   const contract = useVaultWarsContract(eventHandlers);
 
   const [gameEndModal, setGameEndModal] = useState<{
     isOpen: boolean;
-    outcome?: 'won' | 'lost';
+    outcome?: "won" | "lost";
     claimed?: boolean;
   }>({ isOpen: false });
-  const [selectedDigits, setSelectedDigits] = useState<string[]>(['', '', '', '']);
+  const [selectedDigits, setSelectedDigits] = useState<string[]>([
+    "",
+    "",
+    "",
+    "",
+  ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
-  const [showPrivacyConsole, setShowPrivacyConsole] = useState(false);
 
   // Load room data on mount
   useEffect(() => {
-    if (roomId) {
-      contract.getRoom(roomId).then(roomData => {
+    if (roomId && contract.contract) {
+      console.log(roomId);
+      contract.getRoom(roomId).then((roomData) => {
+        console.log(roomData);
         if (!roomData) {
           toast({
             title: "❌ Room not found",
             description: "This room does not exist or has expired.",
             variant: "destructive",
           });
-          navigate('/');
+          navigate("/");
         }
       });
     }
   }, [roomId, contract, toast, navigate]);
 
   const handleDigitSelect = (digit: string) => {
-    const emptyIndex = selectedDigits.findIndex(d => !d);
+    const emptyIndex = selectedDigits.findIndex((d) => !d);
     if (emptyIndex !== -1 && !selectedDigits.includes(digit)) {
       const newDigits = [...selectedDigits];
       newDigits[emptyIndex] = digit;
@@ -112,9 +124,9 @@ export default function GameScreen() {
 
   const handleDeleteLast = () => {
     for (let i = selectedDigits.length - 1; i >= 0; i--) {
-      if (selectedDigits[i] !== '') {
+      if (selectedDigits[i] !== "") {
         const newDigits = [...selectedDigits];
-        newDigits[i] = '';
+        newDigits[i] = "";
         setSelectedDigits(newDigits);
         break;
       }
@@ -122,15 +134,15 @@ export default function GameScreen() {
   };
 
   const handleClear = () => {
-    setSelectedDigits(['', '', '', '']);
+    setSelectedDigits(["", "", "", ""]);
   };
 
   const handleSubmit = async () => {
-    if (selectedDigits.some(digit => !digit)) {
+    if (selectedDigits.some((digit) => !digit)) {
       toast({
         title: "Incomplete guess",
         description: "Select all 4 digits",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -139,25 +151,28 @@ export default function GameScreen() {
       toast({
         title: "Invalid guess",
         description: "All digits must be unique",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
     try {
       setIsSubmitting(true);
-      
+
       // Add to player guesses with mock result
       const newGuess = {
         turnIndex: playerGuesses.length + 1,
         digits: [...selectedDigits],
-        result: { breached: Math.floor(Math.random() * 3), injured: Math.floor(Math.random() * 2) },
-        timestamp: Date.now()
+        result: {
+          breached: Math.floor(Math.random() * 3),
+          injured: Math.floor(Math.random() * 2),
+        },
+        timestamp: Date.now(),
       };
-      
-      setPlayerGuesses(prev => [...prev, newGuess]);
-      setSelectedDigits(['', '', '', '']);
-      
+
+      setPlayerGuesses((prev) => [...prev, newGuess]);
+      setSelectedDigits(["", "", "", ""]);
+
       toast({
         title: "Probe launched!",
         description: "Scanning vault defenses...",
@@ -174,11 +189,11 @@ export default function GameScreen() {
   };
 
   const handleReturnHome = () => {
-    navigate('/');
+    navigate("/");
   };
 
   const handleClaimWager = () => {
-    setGameEndModal(prev => ({ ...prev, claimed: true }));
+    setGameEndModal((prev) => ({ ...prev, claimed: true }));
     toast({
       title: "Wager claimed!",
       description: "Transaction successful",
@@ -196,51 +211,51 @@ export default function GameScreen() {
 
   // Determine game state - force player turn for testing
   const isPlayerTurn = true;
-  
+
   // Mock game in progress data
   const [playerGuesses, setPlayerGuesses] = useState([
     {
       turnIndex: 1,
-      digits: ['1', '2', '3', '4'],
+      digits: ["1", "2", "3", "4"],
       result: { breached: 1, injured: 2 },
-      timestamp: Date.now() - 300000
+      timestamp: Date.now() - 300000,
     },
     {
       turnIndex: 2,
-      digits: ['5', '6', '7', '8'],
+      digits: ["5", "6", "7", "8"],
       result: { breached: 0, injured: 1 },
-      timestamp: Date.now() - 120000
-    }
+      timestamp: Date.now() - 120000,
+    },
   ]);
-  
+
   const opponentGuesses = [
     {
       turnIndex: 1,
-      digits: ['9', '0', '1', '2'],
+      digits: ["9", "0", "1", "2"],
       result: { breached: 2, injured: 0 },
-      timestamp: Date.now() - 250000
+      timestamp: Date.now() - 250000,
     },
     {
       turnIndex: 2,
-      digits: ['3', '4', '5', '6'],
+      digits: ["3", "4", "5", "6"],
       result: { breached: 1, injured: 1 },
-      timestamp: Date.now() - 80000
-    }
+      timestamp: Date.now() - 80000,
+    },
   ];
-  
-  const isComplete = selectedDigits.every(digit => digit !== '');
+
+  const isComplete = selectedDigits.every((digit) => digit !== "");
   const canSubmit = isComplete && !isSubmitting && isPlayerTurn;
 
   // Listen for Enter key
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && canSubmit) {
+      if (e.key === "Enter" && canSubmit) {
         handleSubmit();
       }
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
   }, [canSubmit]);
 
   if (contract.isLoading) {
@@ -251,7 +266,9 @@ export default function GameScreen() {
         <div className="relative z-10 flex items-center justify-center min-h-screen">
           <div className="text-center">
             <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-            <p className="text-lg text-primary font-mono">Loading battle arena...</p>
+            <p className="text-lg text-primary font-mono">
+              Loading battle arena...
+            </p>
           </div>
         </div>
       </div>
@@ -262,7 +279,7 @@ export default function GameScreen() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
       <Navbar />
       <MatrixBackground />
-      
+
       <div className="relative z-10 container mx-auto px-4 py-6">
         {/* Room Info Header */}
         <div className="mb-8 p-6 bg-card/80 backdrop-blur-sm rounded-lg border border-primary/20 cyber-border">
@@ -272,8 +289,12 @@ export default function GameScreen() {
                 VAULT ROOM {roomId}
               </h1>
               <div className="flex items-center gap-4 text-sm">
-                <span className="text-accent font-mono">WAGER: {wager} ETH</span>
-                <span className="text-muted-foreground font-mono">WALLET: {playerAddress?.slice(0, 8)}...</span>
+                <span className="text-accent font-mono">
+                  WAGER: {wager} ETH
+                </span>
+                <span className="text-muted-foreground font-mono">
+                  WALLET: {playerAddress?.slice(0, 8)}...
+                </span>
               </div>
             </div>
             <Button
@@ -305,15 +326,20 @@ export default function GameScreen() {
                 MY PROBES → OPPONENT VAULT
               </h2>
               {isPlayerTurn && (
-                <span className="text-xs text-primary animate-pulse font-mono">YOUR TURN</span>
+                <span className="text-xs text-primary animate-pulse font-mono">
+                  YOUR TURN
+                </span>
               )}
             </div>
-            
+
             <div className="space-y-2">
               {/* Previous Probes */}
               <div className="space-y-2 max-h-80 overflow-y-auto">
                 {playerGuesses.map((guess) => (
-                  <div key={guess.turnIndex} className="cyber-border rounded-lg p-4 bg-card/30 border-primary/20">
+                  <div
+                    key={guess.turnIndex}
+                    className="cyber-border rounded-lg p-4 bg-card/30 border-primary/20"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex gap-2">
                         {guess.digits.map((digit, index) => (
@@ -343,20 +369,22 @@ export default function GameScreen() {
               </div>
 
               {/* Active Input Row - Always at Bottom */}
-              <div className={`cyber-border rounded-lg p-4 transition-all ${
-                isPlayerTurn 
-                  ? 'bg-primary/10 border-primary/40 shadow-primary/20 shadow-lg' 
-                  : 'bg-card/20 border-muted/30'
-              }`}>
+              <div
+                className={`cyber-border rounded-lg p-4 transition-all ${
+                  isPlayerTurn
+                    ? "bg-primary/10 border-primary/40 shadow-primary/20 shadow-lg"
+                    : "bg-card/20 border-muted/30"
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex gap-2">
                     {selectedDigits.map((digit, index) => (
                       <div
                         key={index}
                         className={`w-20 h-20 rounded border-2 border-dashed flex items-center justify-center font-mono font-bold text-3xl transition-all ${
-                          isPlayerTurn 
-                            ? 'border-primary/50 bg-primary/5 text-primary' 
-                            : 'border-muted/30 bg-muted/5 text-muted-foreground'
+                          isPlayerTurn
+                            ? "border-primary/50 bg-primary/5 text-primary"
+                            : "border-muted/30 bg-muted/5 text-muted-foreground"
                         }`}
                       >
                         {digit || "•"}
@@ -365,9 +393,13 @@ export default function GameScreen() {
                   </div>
                   <div className="text-sm font-mono">
                     {isPlayerTurn ? (
-                      <span className="text-primary animate-pulse">READY TO PROBE</span>
+                      <span className="text-primary animate-pulse">
+                        READY TO PROBE
+                      </span>
                     ) : (
-                      <span className="text-accent animate-pulse">OPPONENT PROBING...</span>
+                      <span className="text-accent animate-pulse">
+                        OPPONENT PROBING...
+                      </span>
                     )}
                   </div>
                 </div>
@@ -380,13 +412,13 @@ export default function GameScreen() {
             <h2 className="text-lg font-semibold text-accent font-mono tracking-wider">
               OPPONENT PROBES → MY VAULT
             </h2>
-            
+
             <div className="space-y-2">
               {/* Opponent's Active Row */}
               <div className="cyber-border rounded-lg p-4 bg-card/20 border-accent/20">
                 <div className="flex items-center justify-between">
                   <div className="flex gap-2">
-                    {Array.from({length: 4}).map((_, index) => (
+                    {Array.from({ length: 4 }).map((_, index) => (
                       <div
                         key={index}
                         className="w-14 h-14 rounded border-2 border-dashed border-accent/30 bg-accent/5 flex items-center justify-center font-mono font-bold text-xl text-accent"
@@ -396,7 +428,9 @@ export default function GameScreen() {
                     ))}
                   </div>
                   <div className="text-sm font-mono">
-                    <span className="text-muted-foreground">AWAITING PROBE</span>
+                    <span className="text-muted-foreground">
+                      AWAITING PROBE
+                    </span>
                   </div>
                 </div>
               </div>
@@ -404,7 +438,10 @@ export default function GameScreen() {
               {/* Opponent's Previous Probes */}
               <div className="space-y-2 max-h-80 overflow-y-auto">
                 {opponentGuesses.map((guess) => (
-                  <div key={guess.turnIndex} className="cyber-border rounded-lg p-4 bg-card/30 border-accent/20">
+                  <div
+                    key={guess.turnIndex}
+                    className="cyber-border rounded-lg p-4 bg-card/30 border-accent/20"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex gap-2">
                         {guess.digits.map((digit, index) => (
@@ -444,7 +481,7 @@ export default function GameScreen() {
                 <h3 className="text-lg font-semibold text-primary font-mono mb-2 tracking-wider">
                   TERMINAL KEYPAD
                 </h3>
-                
+
                 {/* Number Grid */}
                 <div className="grid grid-cols-5 gap-3 mb-6 max-w-md mx-auto">
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((number) => (
@@ -453,7 +490,10 @@ export default function GameScreen() {
                       variant="outline"
                       size="lg"
                       onClick={() => handleDigitSelect(number.toString())}
-                      disabled={selectedDigits.includes(number.toString()) || selectedDigits.every(d => d !== '')}
+                      disabled={
+                        selectedDigits.includes(number.toString()) ||
+                        selectedDigits.every((d) => d !== "")
+                      }
                       className="h-14 text-xl font-mono cyber-border bg-primary/5 hover:bg-primary/20 hover:shadow-primary/30 hover:shadow-lg transition-all border-primary/30 text-primary"
                     >
                       {number}
@@ -466,7 +506,7 @@ export default function GameScreen() {
                   <Button
                     variant="ghost"
                     onClick={handleDeleteLast}
-                    disabled={selectedDigits.every(d => d === '')}
+                    disabled={selectedDigits.every((d) => d === "")}
                     className="font-mono"
                   >
                     Delete
@@ -474,7 +514,7 @@ export default function GameScreen() {
                   <Button
                     variant="ghost"
                     onClick={handleClear}
-                    disabled={selectedDigits.every(d => d === '')}
+                    disabled={selectedDigits.every((d) => d === "")}
                     className="font-mono"
                   >
                     Clear
@@ -486,12 +526,16 @@ export default function GameScreen() {
                     disabled={!canSubmit}
                     className="min-w-32 font-mono cyber-border bg-primary hover:bg-primary/90 shadow-primary/30 shadow-lg"
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && canSubmit) {
+                      if (e.key === "Enter" && canSubmit) {
                         handleSubmit();
                       }
                     }}
                   >
-                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "LAUNCH PROBE"}
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      "LAUNCH PROBE"
+                    )}
                   </Button>
                 </div>
               </div>
@@ -504,36 +548,53 @@ export default function GameScreen() {
       {gameEndModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
           <div className="bg-card/90 backdrop-blur-sm p-8 rounded-lg border cyber-border text-center max-w-md mx-4 shadow-2xl">
-            <h2 className={`text-3xl font-bold font-mono mb-6 tracking-wider ${
-              gameEndModal.outcome === 'won' 
-                ? 'text-green-400 drop-shadow-[0_0_10px_rgb(34,197,94)]' 
-                : 'text-red-400 drop-shadow-[0_0_10px_rgb(239,68,68)]'
-            }`}>
-              {gameEndModal.outcome === 'won' ? "VAULT BREACHED" : "YOUR VAULT HAS BEEN CRACKED"}
+            <h2
+              className={`text-3xl font-bold font-mono mb-6 tracking-wider ${
+                gameEndModal.outcome === "won"
+                  ? "text-green-400 drop-shadow-[0_0_10px_rgb(34,197,94)]"
+                  : "text-red-400 drop-shadow-[0_0_10px_rgb(239,68,68)]"
+              }`}
+            >
+              {gameEndModal.outcome === "won"
+                ? "VAULT BREACHED"
+                : "YOUR VAULT HAS BEEN CRACKED"}
             </h2>
             <div className="mb-8">
-              <p className={`text-xl font-mono ${
-                gameEndModal.outcome === 'won' ? 'text-green-300' : 'text-red-300'
-              }`}>
-                {gameEndModal.outcome === 'won' ? "You win." : ""}
+              <p
+                className={`text-xl font-mono ${
+                  gameEndModal.outcome === "won"
+                    ? "text-green-300"
+                    : "text-red-300"
+                }`}
+              >
+                {gameEndModal.outcome === "won" ? "You win." : ""}
               </p>
               <p className="text-lg font-mono text-muted-foreground mt-2">
                 Wager: {wager} ETH
               </p>
             </div>
             <div className="flex gap-4 justify-center">
-              {gameEndModal.outcome === 'won' ? (
+              {gameEndModal.outcome === "won" ? (
                 gameEndModal.claimed ? (
-                  <Button onClick={handleReturnHome} className="min-w-32 cyber-border">
+                  <Button
+                    onClick={handleReturnHome}
+                    className="min-w-32 cyber-border"
+                  >
                     Exit to Lobby
                   </Button>
                 ) : (
-                  <Button onClick={handleClaimWager} className="min-w-32 cyber-border bg-green-600 hover:bg-green-700 text-white">
+                  <Button
+                    onClick={handleClaimWager}
+                    className="min-w-32 cyber-border bg-green-600 hover:bg-green-700 text-white"
+                  >
                     Claim Wager
                   </Button>
                 )
               ) : (
-                <Button onClick={handleReturnHome} className="min-w-32 cyber-border">
+                <Button
+                  onClick={handleReturnHome}
+                  className="min-w-32 cyber-border"
+                >
                   Exit to Lobby
                 </Button>
               )}
