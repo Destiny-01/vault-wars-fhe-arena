@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import MatrixBackground from "@/components/MatrixBackground";
 import { Navbar } from "@/components/layout/Navbar";
@@ -12,30 +12,23 @@ import { Copy, Loader2, HelpCircle } from "lucide-react";
 
 export default function GameScreen() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const { roomId } = useParams();
   const { toast } = useToast();
 
-  // Extract room details from URL
-  const roomId = searchParams.get("roomId") || "";
-  const playerAddress = searchParams.get("playerAddress") || "";
-  const opponentAddress = searchParams.get("opponentAddress") || "";
-  const wager = searchParams.get("wager") || "";
+  // State for room data
+  const [roomData, setRoomData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   // Contract integration with comprehensive event handlers
   const eventHandlers = useContractEvents({
     onProbeSubmitted: (event) => {
       // Handle probe submissions and update UI accordingly
-      if (event.submitter.toLowerCase() === playerAddress.toLowerCase()) {
-        // Player's probe submitted
-        setSelectedDigits(["", "", "", ""]);
-        setIsSubmitting(false);
-      } else {
-        // Opponent's probe submitted
-        toast({
-          title: "🔍 Opponent probe detected",
-          description: "Your rival is analyzing your vault...",
-        });
-      }
+      setSelectedDigits(["", "", "", ""]);
+      setIsSubmitting(false);
+      toast({
+        title: "🔍 Probe submitted",
+        description: "Analyzing vault defenses...",
+      });
     },
     onResultComputed: (event) => {
       // Handle FHE computation results
@@ -49,30 +42,23 @@ export default function GameScreen() {
         if (event.signedResult.breaches >= 4) {
           setGameEndModal({
             isOpen: true,
-            outcome:
-              event.submitter.toLowerCase() === playerAddress.toLowerCase()
-                ? "won"
-                : "lost",
+            outcome: "won",
             claimed: false,
           });
         }
       }
     },
     onWinnerDecrypted: (event) => {
-      const isWinner =
-        event.winner.toLowerCase() === playerAddress.toLowerCase();
       setGameEndModal({
         isOpen: true,
-        outcome: isWinner ? "won" : "lost",
+        outcome: "won",
         claimed: false,
       });
     },
     onGameFinished: (event) => {
       toast({
         title: "🎉 Game completed!",
-        description: `Winner: ${
-          event.winner === playerAddress ? "You" : "Opponent"
-        } | Payout: ${event.amount} ETH`,
+        description: `Payout: ${event.amount} ETH`,
       });
 
       setTimeout(() => navigate("/"), 3000);
@@ -97,21 +83,36 @@ export default function GameScreen() {
 
   // Load room data on mount
   useEffect(() => {
-    if (roomId && contract.contract) {
-      console.log(roomId);
-      contract.getRoom(roomId).then((roomData) => {
-        console.log(roomData);
-        if (!roomData) {
+    const loadRoomData = async () => {
+      if (!roomId || !contract.contract) return;
+      
+      try {
+        setLoading(true);
+        const data = await contract.getRoom(roomId);
+        if (!data) {
           toast({
             title: "❌ Room not found",
             description: "This room does not exist or has expired.",
             variant: "destructive",
           });
           navigate("/");
+        } else {
+          setRoomData(data);
         }
-      });
-    }
-  }, [roomId, contract, toast, navigate]);
+      } catch (error) {
+        console.error("Failed to load room:", error);
+        toast({
+          title: "❌ Failed to load room",
+          description: "Could not connect to the game room.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRoomData();
+  }, [roomId, contract.contract, toast, navigate]);
 
   const handleDigitSelect = (digit: string) => {
     const emptyIndex = selectedDigits.findIndex((d) => !d);
@@ -212,36 +213,9 @@ export default function GameScreen() {
   // Determine game state - force player turn for testing
   const isPlayerTurn = true;
 
-  // Mock game in progress data
-  const [playerGuesses, setPlayerGuesses] = useState([
-    {
-      turnIndex: 1,
-      digits: ["1", "2", "3", "4"],
-      result: { breached: 1, injured: 2 },
-      timestamp: Date.now() - 300000,
-    },
-    {
-      turnIndex: 2,
-      digits: ["5", "6", "7", "8"],
-      result: { breached: 0, injured: 1 },
-      timestamp: Date.now() - 120000,
-    },
-  ]);
-
-  const opponentGuesses = [
-    {
-      turnIndex: 1,
-      digits: ["9", "0", "1", "2"],
-      result: { breached: 2, injured: 0 },
-      timestamp: Date.now() - 250000,
-    },
-    {
-      turnIndex: 2,
-      digits: ["3", "4", "5", "6"],
-      result: { breached: 1, injured: 1 },
-      timestamp: Date.now() - 80000,
-    },
-  ];
+  // Real game data from contract
+  const [playerGuesses, setPlayerGuesses] = useState<any[]>([]);
+  const [opponentGuesses, setOpponentGuesses] = useState<any[]>([]);
 
   const isComplete = selectedDigits.every((digit) => digit !== "");
   const canSubmit = isComplete && !isSubmitting && isPlayerTurn;
@@ -258,7 +232,17 @@ export default function GameScreen() {
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [canSubmit]);
 
-  if (contract.isLoading) {
+  const getPhaseText = (phase: number) => {
+    switch (phase) {
+      case 0: return "Waiting for opponent";
+      case 1: return "Battle in progress";
+      case 2: return "Battle completed";
+      case 3: return "Room cancelled";
+      default: return "Unknown status";
+    }
+  };
+
+  if (loading || !roomData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
         <Navbar />
@@ -269,6 +253,39 @@ export default function GameScreen() {
             <p className="text-lg text-primary font-mono">
               Loading battle arena...
             </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show waiting state if no opponent
+  if (roomData.phase === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
+        <Navbar />
+        <MatrixBackground />
+        <div className="relative z-10 container mx-auto px-4 py-6">
+          <div className="max-w-2xl mx-auto text-center space-y-6">
+            <div className="p-8 bg-card/80 backdrop-blur-sm rounded-lg border border-primary/20 cyber-border">
+              <h1 className="text-3xl font-bold text-primary font-mono mb-4">
+                ROOM {roomId}
+              </h1>
+              <div className="space-y-4">
+                <div className="text-lg text-accent font-mono">
+                  {getPhaseText(roomData.phase)}
+                </div>
+                <div className="animate-pulse text-primary">
+                  Waiting for opponent to join...
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Wager: {roomData?.wager || "0"} ETH
+                </div>
+                <Button onClick={() => navigate("/")} variant="outline">
+                  Return Home
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -290,10 +307,10 @@ export default function GameScreen() {
               </h1>
               <div className="flex items-center gap-4 text-sm">
                 <span className="text-accent font-mono">
-                  WAGER: {wager} ETH
+                  WAGER: {roomData.wager} ETH
                 </span>
-                <span className="text-muted-foreground font-mono">
-                  WALLET: {playerAddress?.slice(0, 8)}...
+                <span className="text-primary font-mono">
+                  STATUS: {getPhaseText(roomData.phase)}
                 </span>
               </div>
             </div>
@@ -570,7 +587,7 @@ export default function GameScreen() {
                 {gameEndModal.outcome === "won" ? "You win." : ""}
               </p>
               <p className="text-lg font-mono text-muted-foreground mt-2">
-                Wager: {wager} ETH
+                Wager: {roomData?.wager || "0"} ETH
               </p>
             </div>
             <div className="flex gap-4 justify-center">

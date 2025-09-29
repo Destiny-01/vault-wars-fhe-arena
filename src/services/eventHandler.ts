@@ -5,7 +5,7 @@
  * to appropriate UI updates and state changes.
  */
 
-import { Contract, Event } from "ethers";
+import { Contract } from "ethers";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -82,7 +82,7 @@ class VaultWarsEventHandler {
   private contract: Contract | null = null;
   private handlers: EventHandlers = {};
   private activeListeners: string[] = [];
-  private isListening = false;
+  public isListening = false;
 
   /**
    * Initialize event handling with contract instance

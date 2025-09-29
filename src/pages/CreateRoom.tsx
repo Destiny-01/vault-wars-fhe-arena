@@ -76,7 +76,8 @@ export default function CreateRoom() {
   };
 
   const isVaultComplete = vaultCode.every((digit) => digit !== "");
-  const isWagerValid = wager !== "" && parseFloat(wager) > 0;
+  const MIN_WAGER = 0.01;
+  const isWagerValid = wager !== "" && parseFloat(wager) >= MIN_WAGER;
   const isFormValid = isVaultComplete && isWagerValid;
 
   const handleCreateRoom = async () => {
@@ -129,9 +130,7 @@ export default function CreateRoom() {
   };
 
   const handleGoToGame = () => {
-    navigate(
-      `/game?roomId=${createdRoomId}&playerAddress=${address}&opponentAddress=&wager=${wager}`
-    );
+    navigate(`/game/${createdRoomId}`);
   };
 
   return (
@@ -163,12 +162,15 @@ export default function CreateRoom() {
                   id="wager"
                   type="number"
                   step="0.01"
-                  min="0"
-                  placeholder="0.1"
+                  min={MIN_WAGER}
+                  placeholder={`${MIN_WAGER} (minimum)`}
                   value={wager}
                   onChange={(e) => setWager(e.target.value)}
                   className="text-lg h-12"
                 />
+                <p className="text-sm text-muted-foreground">
+                  Minimum wager: {MIN_WAGER} ETH
+                </p>
               </div>
 
               {/* Vault Code Section */}

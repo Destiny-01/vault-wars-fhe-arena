@@ -67,9 +67,9 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
     new Map()
   );
 
-  // Initialize contract and event handlers
+  // Initialize contract and event handlers only once
   useEffect(() => {
-    if (typeof window !== "undefined" && window.ethereum) {
+    if (typeof window !== "undefined" && window.ethereum && !contract) {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const contractInstance = new Contract(
         VAULT_WARS_CONTRACT_ADDRESS,
@@ -80,17 +80,21 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
       setContract(contractInstance);
       setIsContractReady(true);
 
-      // Initialize event handler
-      if (eventHandlers) {
-        eventHandler.initialize(contractInstance, eventHandlers);
-      }
-
       return () => {
-        eventHandler.cleanup();
         setIsContractReady(false);
       };
     }
-  }, [eventHandlers]);
+  }, []);
+
+  // Initialize event handlers separately to avoid spam
+  useEffect(() => {
+    if (contract && eventHandlers && isContractReady) {
+      eventHandler.updateHandlers(eventHandlers);
+      if (!eventHandler.isListening) {
+        eventHandler.initialize(contract, eventHandlers);
+      }
+    }
+  }, [contract, eventHandlers, isContractReady]);
 
   // Read player wins
   // const { data: playerWins, refetch: refetchWins } = useReadContract({

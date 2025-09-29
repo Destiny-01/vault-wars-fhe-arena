@@ -32,7 +32,7 @@ const App = () => (
               <Route path="/create-room" element={<CreateRoom />} />
               <Route path="/join-room" element={<JoinRoom />} />
               <Route path="/join" element={<JoinRoom />} />
-              <Route path="/game" element={<GameScreen />} />
+              <Route path="/game/:roomId" element={<GameScreen />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
