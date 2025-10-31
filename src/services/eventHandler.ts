@@ -5,9 +5,10 @@
  * to appropriate UI updates and state changes.
  */
 
-import { Contract } from "ethers";
+import { Contract, EventLog, Log } from "ethers";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { getFhevmInstance, fetchPublicDecryption } from "@/lib/fhe";
 
 // Event type definitions
 export interface ContractEvent {
@@ -37,14 +38,11 @@ export interface ProbeSubmittedEvent extends ContractEvent {
 }
 
 export interface ResultComputedEvent extends ContractEvent {
-  turnIndex: number;
   submitter: string;
-  isWin: boolean; // This might be encrypted
-  signedResult?: {
-    breaches: number;
-    signals: number;
-    signature: string;
-  };
+  isWin: boolean; // decrypted boolean
+  guess: number[]; // decrypted [euint8;4]
+  breaches: number; // decrypted euint8
+  signals: number; // decrypted euint8
 }
 
 export interface DecryptionRequestedEvent extends ContractEvent {
@@ -83,6 +81,12 @@ class VaultWarsEventHandler {
   private handlers: EventHandlers = {};
   private activeListeners: string[] = [];
   public isListening = false;
+  private pollInterval: NodeJS.Timeout | null = null;
+  // Deduplication and rate limiting
+  private lastProcessedBlock: number | null = null;
+  private processedEventKeys: Set<string> = new Set();
+  private perRoomEventCounts: Map<string, number> = new Map();
+  private static MAX_REPEATS_PER_EVENT_PER_ROOM = 3;
 
   /**
    * Initialize event handling with contract instance
@@ -90,6 +94,10 @@ class VaultWarsEventHandler {
   initialize(contract: Contract, handlers: EventHandlers = {}) {
     this.contract = contract;
     this.handlers = handlers;
+    // reset trackers on init
+    this.lastProcessedBlock = null;
+    this.processedEventKeys.clear();
+    this.perRoomEventCounts.clear();
     this.startListening();
   }
 
@@ -101,7 +109,7 @@ class VaultWarsEventHandler {
   }
 
   /**
-   * Start listening to all contract events
+   * Start listening to all contract events using polling instead of filters
    */
   private startListening() {
     if (!this.contract || this.isListening) return;
@@ -109,209 +117,295 @@ class VaultWarsEventHandler {
     console.log("[EventHandler] Starting to listen for contract events");
     this.isListening = true;
 
-    // RoomCreated Event
-    this.contract.on("RoomCreated", (roomId, creator, wager, token, event) => {
-      const eventData: RoomCreatedEvent = {
-        roomId: roomId.toString(),
-        creator,
-        wager: wager.toString(),
-        token,
-        transactionHash: event.transactionHash,
-        blockNumber: event.blockNumber,
-        timestamp: Date.now(),
-      };
+    // Use polling instead of filters to avoid filter management issues
+    this.startPolling();
+  }
 
-      console.log("[EventHandler] RoomCreated:", eventData);
-      this.handlers.onRoomCreated?.(eventData);
-    });
+  /**
+   * Start polling for events instead of using filters
+   */
+  private startPolling() {
+    if (!this.contract || !this.isListening) return;
 
-    // RoomJoined Event
-    this.contract.on("RoomJoined", (roomId, opponent, event) => {
-      const eventData: RoomJoinedEvent = {
-        roomId: roomId.toString(),
-        opponent,
-        transactionHash: event.transactionHash,
-        blockNumber: event.blockNumber,
-        timestamp: Date.now(),
-      };
-
-      console.log("[EventHandler] RoomJoined:", eventData);
-      this.handlers.onRoomJoined?.(eventData);
-    });
-
-    // VaultSubmitted Event
-    this.contract.on("VaultSubmitted", (roomId, who, event) => {
-      const eventData: VaultSubmittedEvent = {
-        roomId: roomId.toString(),
-        who,
-        transactionHash: event.transactionHash,
-        blockNumber: event.blockNumber,
-        timestamp: Date.now(),
-      };
-
-      console.log("[EventHandler] VaultSubmitted:", eventData);
-      this.handlers.onVaultSubmitted?.(eventData);
-    });
-
-    // ProbeSubmitted Event
-    this.contract.on(
-      "ProbeSubmitted",
-      (roomId, turnIndex, submitter, event) => {
-        const eventData: ProbeSubmittedEvent = {
-          roomId: roomId.toString(),
-          turnIndex: turnIndex.toNumber(),
-          submitter,
-          transactionHash: event.transactionHash,
-          blockNumber: event.blockNumber,
-          timestamp: Date.now(),
-        };
-
-        console.log("[EventHandler] ProbeSubmitted:", eventData);
-        this.handlers.onProbeSubmitted?.(eventData);
+    // Poll every 3 seconds for new events
+    const pollInterval = setInterval(async () => {
+      if (!this.isListening) {
+        clearInterval(pollInterval);
+        return;
       }
-    );
 
-    // ResultComputed Event
-    this.contract.on(
-      "ResultComputed",
-      (roomId, turnIndex, submitter, isWin, signedResult, event) => {
-        const eventData: ResultComputedEvent = {
-          roomId: roomId.toString(),
-          turnIndex: turnIndex.toNumber(),
-          submitter,
-          isWin, // This might be encrypted boolean
-          transactionHash: event.transactionHash,
-          blockNumber: event.blockNumber,
-          timestamp: Date.now(),
-        };
+      try {
+        await this.checkForNewEvents();
+      } catch (error) {
+        console.warn("[EventHandler] Error polling for events:", error);
+      }
+    }, 3000);
 
-        // If signed result is provided, verify signature
-        if (signedResult && signedResult.signature) {
-          const payload = JSON.stringify({
-            roomId: eventData.roomId,
-            turnIndex: eventData.turnIndex,
-            breaches: signedResult.breaches,
-            signals: signedResult.signals,
-          });
+    // Store the interval ID for cleanup
+    this.pollInterval = pollInterval;
+  }
 
-          // const isValidSignature = verifySignature(
-          //   'gateway_public_key', // TODO: Use real gateway public key
-          //   payload,
-          //   signedResult.signature
-          // );
+  /**
+   * Check for new events by querying recent blocks
+   */
+  private async checkForNewEvents() {
+    if (!this.contract) return;
 
-          // if (isValidSignature) {
-          eventData.signedResult = signedResult;
-          // } else {
-          //   console.warn('[EventHandler] Invalid signature on ResultComputed event');
-          // }
+    try {
+      // Determine block range to scan
+      const latestBlock =
+        await this.contract.runner!.provider!.getBlockNumber();
+      const fromBlock =
+        this.lastProcessedBlock === null
+          ? Math.max(0, latestBlock - 10)
+          : this.lastProcessedBlock + 1;
+
+      if (fromBlock > latestBlock) return;
+
+      // Query all events in range
+      const allEvents = await this.contract.queryFilter(
+        "*",
+        fromBlock,
+        latestBlock
+      );
+
+      for (const event of allEvents) {
+        await this.processEvent(event as EventLog | Log);
+        // update last processed block progressively
+        if (typeof event.blockNumber === "number") {
+          this.lastProcessedBlock = Math.max(
+            this.lastProcessedBlock ?? 0,
+            event.blockNumber
+          );
+        }
+      }
+    } catch (error) {
+      console.warn("[EventHandler] Error checking for events:", error);
+    }
+  }
+
+  /**
+   * Process a single event and route to appropriate handler
+   */
+  private async processEvent(event: EventLog | Log) {
+    // Only process EventLog events (not raw Log events)
+    if (!event || !("eventName" in event) || !event.eventName) return;
+
+    const eventName = event.eventName;
+    const args = event.args;
+
+    // Build a stable key to deduplicate (txHash + logIndex)
+    const ev = event as EventLog;
+    const key = `${ev.transactionHash}:${
+      (ev as unknown as { index?: number; logIndex?: number }).index ??
+      (ev as unknown as { index?: number; logIndex?: number }).logIndex ??
+      ""
+    }`;
+    if (this.processedEventKeys.has(key)) {
+      return; // already handled
+    }
+
+    try {
+      // Extract roomId for rate limiting (best-effort)
+      const roomId = String(args?.[0] ?? "");
+      if (roomId) {
+        const counterKey = `${roomId}:${eventName}`;
+        const count = this.perRoomEventCounts.get(counterKey) ?? 0;
+        if (count >= VaultWarsEventHandler.MAX_REPEATS_PER_EVENT_PER_ROOM) {
+          return; // drop excessive repeats
+        }
+        this.perRoomEventCounts.set(counterKey, count + 1);
+      }
+
+      switch (eventName) {
+        case "RoomCreated": {
+          const roomCreatedData: RoomCreatedEvent = {
+            roomId: String(args[0]),
+            creator: String(args[1]),
+            wager: String(args[2]),
+            token: String(args[3]),
+            transactionHash: event.transactionHash,
+            blockNumber: event.blockNumber,
+            timestamp: Date.now(),
+          };
+          console.log("[EventHandler] RoomCreated:", roomCreatedData);
+          this.handlers.onRoomCreated?.(roomCreatedData);
+          break;
         }
 
-        console.log("[EventHandler] ResultComputed:", eventData);
-        this.handlers.onResultComputed?.(eventData);
+        case "RoomJoined": {
+          const roomJoinedData: RoomJoinedEvent = {
+            roomId: String(args[0]),
+            opponent: String(args[1]),
+            transactionHash: event.transactionHash,
+            blockNumber: event.blockNumber,
+            timestamp: Date.now(),
+          };
+          console.log("[EventHandler] RoomJoined:", roomJoinedData);
+          this.handlers.onRoomJoined?.(roomJoinedData);
+          break;
+        }
+
+        case "VaultSubmitted": {
+          const vaultSubmittedData: VaultSubmittedEvent = {
+            roomId: String(args[0]),
+            who: String(args[1]),
+            transactionHash: event.transactionHash,
+            blockNumber: event.blockNumber,
+            timestamp: Date.now(),
+          };
+          console.log("[EventHandler] VaultSubmitted:", vaultSubmittedData);
+          this.handlers.onVaultSubmitted?.(vaultSubmittedData);
+          break;
+        }
+
+        case "ResultComputed": {
+          // Decrypt public outputs (third argument to the last)
+          void (async () => {
+            try {
+              console.log(
+                args[0], // roomId
+                args[1], // submitter
+                args[2], // isWinHandle
+                args[3], // guessHandles
+                args[4], // breachesHandle
+                args[5], // signalsHandle
+                event
+              );
+              await getFhevmInstance();
+              const handleStrings: string[] = [
+                args[2]?.toString?.() ?? String(args[2]), // isWinHandle
+                ...[0, 1, 2, 3].map(
+                  (i) => args[3]?.[i]?.toString?.() ?? String(args[3]?.[i]) // guessHandles[i]
+                ),
+                args[4]?.toString?.() ?? String(args[4]), // breachesHandle
+                args[5]?.toString?.() ?? String(args[5]), // signalsHandle
+              ];
+
+              const decryptedMap = await fetchPublicDecryption(handleStrings);
+
+              const resolve = (idx: number) => {
+                const key = handleStrings[idx];
+                const val = decryptedMap?.[key];
+                return typeof val === "string" ? Number(val) : Number(val ?? 0);
+              };
+
+              const isWin = Boolean(resolve(0));
+              const guess = [resolve(1), resolve(2), resolve(3), resolve(4)];
+              const breaches = resolve(5);
+              const signals = resolve(6);
+
+              const resultComputedData: ResultComputedEvent = {
+                roomId: String(args[0]),
+                submitter: String(args[1]),
+                isWin,
+                guess,
+                breaches,
+                signals,
+                transactionHash: event.transactionHash,
+                blockNumber: event.blockNumber,
+                timestamp: Date.now(),
+              };
+
+              console.log(
+                "[EventHandler] ResultComputed (decrypted):",
+                resultComputedData
+              );
+              this.handlers.onResultComputed?.(resultComputedData);
+            } catch (error) {
+              console.error(
+                "[EventHandler] Failed to decrypt ResultComputed:",
+                error
+              );
+            }
+          })();
+          break;
+        }
+
+        case "DecryptionRequested": {
+          const decryptionRequestedData: DecryptionRequestedEvent = {
+            roomId: String(args[0]),
+            requestId: String(args[1]),
+            transactionHash: event.transactionHash,
+            blockNumber: event.blockNumber,
+            timestamp: Date.now(),
+          };
+          console.log(
+            "[EventHandler] DecryptionRequested:",
+            decryptionRequestedData
+          );
+          this.handlers.onDecryptionRequested?.(decryptionRequestedData);
+          break;
+        }
+
+        case "WinnerDecrypted": {
+          const winnerDecryptedData: WinnerDecryptedEvent = {
+            roomId: String(args[0]),
+            winner: String(args[1]),
+            signature: undefined,
+            transactionHash: event.transactionHash,
+            blockNumber: event.blockNumber,
+            timestamp: Date.now(),
+          };
+          console.log("[EventHandler] WinnerDecrypted:", winnerDecryptedData);
+          this.handlers.onWinnerDecrypted?.(winnerDecryptedData);
+          break;
+        }
+
+        case "GameFinished": {
+          const gameFinishedData: GameFinishedEvent = {
+            roomId: String(args[0]),
+            winner: String(args[1]),
+            amount: String(args[2]),
+            transactionHash: event.transactionHash,
+            blockNumber: event.blockNumber,
+            timestamp: Date.now(),
+          };
+          console.log("[EventHandler] GameFinished:", gameFinishedData);
+          this.handlers.onGameFinished?.(gameFinishedData);
+          break;
+        }
+
+        case "RoomCancelled": {
+          const roomCancelledData: RoomCancelledEvent = {
+            roomId: String(args[0]),
+            by: String(args[1]),
+            transactionHash: event.transactionHash,
+            blockNumber: event.blockNumber,
+            timestamp: Date.now(),
+          };
+          console.log("[EventHandler] RoomCancelled:", roomCancelledData);
+          this.handlers.onRoomCancelled?.(roomCancelledData);
+          break;
+        }
       }
-    );
-
-    // DecryptionRequested Event
-    this.contract.on("DecryptionRequested", (roomId, requestId, event) => {
-      const eventData: DecryptionRequestedEvent = {
-        roomId: roomId.toString(),
-        requestId: requestId.toString(),
-        transactionHash: event.transactionHash,
-        blockNumber: event.blockNumber,
-        timestamp: Date.now(),
-      };
-
-      console.log("[EventHandler] DecryptionRequested:", eventData);
-      this.handlers.onDecryptionRequested?.(eventData);
-    });
-
-    // WinnerDecrypted Event
-    this.contract.on("WinnerDecrypted", (roomId, winner, signature, event) => {
-      const eventData: WinnerDecryptedEvent = {
-        roomId: roomId.toString(),
-        winner,
-        signature,
-        transactionHash: event.transactionHash,
-        blockNumber: event.blockNumber,
-        timestamp: Date.now(),
-      };
-
-      // Verify signature if provided
-      // if (signature) {
-      //   const payload = JSON.stringify({ roomId: eventData.roomId, winner });
-      //   const isValidSignature = verifySignature(
-      //     'gateway_public_key', // TODO: Use real gateway public key
-      //     payload,
-      //     signature
-      //   );
-
-      //   if (!isValidSignature) {
-      //     console.warn('[EventHandler] Invalid signature on WinnerDecrypted event');
-      //     return; // Don't process invalid results
-      //   }
-      // }
-
-      console.log("[EventHandler] WinnerDecrypted:", eventData);
-      this.handlers.onWinnerDecrypted?.(eventData);
-    });
-
-    // GameFinished Event
-    this.contract.on("GameFinished", (roomId, winner, amount, event) => {
-      const eventData: GameFinishedEvent = {
-        roomId: roomId.toString(),
-        winner,
-        amount: amount.toString(),
-        transactionHash: event.transactionHash,
-        blockNumber: event.blockNumber,
-        timestamp: Date.now(),
-      };
-
-      console.log("[EventHandler] GameFinished:", eventData);
-      this.handlers.onGameFinished?.(eventData);
-    });
-
-    // RoomCancelled Event
-    this.contract.on("RoomCancelled", (roomId, by, event) => {
-      const eventData: RoomCancelledEvent = {
-        roomId: roomId.toString(),
-        by,
-        transactionHash: event.transactionHash,
-        blockNumber: event.blockNumber,
-        timestamp: Date.now(),
-      };
-
-      console.log("[EventHandler] RoomCancelled:", eventData);
-      this.handlers.onRoomCancelled?.(eventData);
-    });
-
-    this.activeListeners = [
-      "RoomCreated",
-      "RoomJoined",
-      "VaultSubmitted",
-      "ProbeSubmitted",
-      "ResultComputed",
-      "DecryptionRequested",
-      "WinnerDecrypted",
-      "GameFinished",
-      "RoomCancelled",
-    ];
+    } catch (error) {
+      console.warn(
+        `[EventHandler] Error processing ${eventName} event:`,
+        error
+      );
+    } finally {
+      // mark as processed after successful switch (or even on error, to avoid hot loops)
+      this.processedEventKeys.add(key);
+    }
   }
 
   /**
    * Stop listening to contract events
    */
   stopListening() {
-    if (!this.contract || !this.isListening) return;
+    if (!this.isListening) return;
 
     console.log("[EventHandler] Stopping contract event listeners");
 
-    this.activeListeners.forEach((eventName) => {
-      this.contract?.removeAllListeners(eventName);
-    });
+    // Clear the polling interval
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
 
     this.isListening = false;
-    this.activeListeners = [];
+    // Do not clear processed caches here; keep them to avoid immediate replays on quick restart
   }
 
   /**
@@ -372,7 +466,7 @@ export function useContractEvents(handlers: EventHandlers) {
       } else {
         toast({
           title: "🔍 Probe Launched",
-          description: `Probe #${event.turnIndex + 1} submitted to blockchain.`,
+          description: `Probe submitted to blockchain.`,
         });
       }
     },
@@ -383,7 +477,7 @@ export function useContractEvents(handlers: EventHandlers) {
       } else {
         toast({
           title: "📊 Result Computed",
-          description: `Probe #${event.turnIndex + 1} analyzed by FHE network.`,
+          description: `Result analyzed by FHE network.`,
         });
       }
     },

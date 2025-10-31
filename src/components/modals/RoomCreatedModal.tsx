@@ -9,16 +9,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Link, useNavigate, useNavigation } from "react-router-dom";
 
 interface RoomCreatedModalProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
   roomId: string;
 }
 
-export function RoomCreatedModal({ open, onOpenChange, roomId }: RoomCreatedModalProps) {
+export function RoomCreatedModal({ open, roomId }: RoomCreatedModalProps) {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const invitationLink = `${window.location.origin}/join?room=${roomId}`;
 
@@ -41,8 +42,11 @@ export function RoomCreatedModal({ open, onOpenChange, roomId }: RoomCreatedModa
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md cyber-border bg-background">
+    <Dialog open={open}>
+      <DialogContent
+        hideClose
+        className="sm:max-w-md cyber-border bg-background"
+      >
         <DialogHeader className="text-center">
           <DialogTitle className="text-xl font-bold text-primary">
             Room Created!
@@ -51,7 +55,7 @@ export function RoomCreatedModal({ open, onOpenChange, roomId }: RoomCreatedModa
             Share this room with your opponent to start the game.
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="space-y-4">
           <div className="text-center">
             <label className="text-sm font-medium text-muted-foreground">
@@ -89,11 +93,10 @@ export function RoomCreatedModal({ open, onOpenChange, roomId }: RoomCreatedModa
           </div>
 
           <Button
-            onClick={copyInvitationLink}
+            onClick={() => navigate(`/game/${roomId}`)}
             className="w-full cyber-border bg-primary hover:bg-primary/90"
           >
-            <Copy className="mr-2 h-4 w-4" />
-            Copy Invitation Link
+            Advance to battle!
           </Button>
         </div>
       </DialogContent>

@@ -153,37 +153,6 @@ export const VAULT_WARS_ABI = [
       },
       {
         indexed: true,
-        internalType: "uint256",
-        name: "turnIndex",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "submitter",
-        type: "address",
-      },
-    ],
-    name: "ProbeSubmitted",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "roomId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "turnIndex",
-        type: "uint256",
-      },
-      {
-        indexed: true,
         internalType: "address",
         name: "submitter",
         type: "address",
@@ -192,6 +161,24 @@ export const VAULT_WARS_ABI = [
         indexed: false,
         internalType: "ebool",
         name: "isWin",
+        type: "bytes32",
+      },
+      {
+        indexed: false,
+        internalType: "euint8[4]",
+        name: "guess",
+        type: "bytes32[4]",
+      },
+      {
+        indexed: false,
+        internalType: "euint8",
+        name: "breaches",
+        type: "bytes32",
+      },
+      {
+        indexed: false,
+        internalType: "euint8",
+        name: "signals",
         type: "bytes32",
       },
     ],
@@ -347,9 +334,14 @@ export const VAULT_WARS_ABI = [
   {
     inputs: [
       {
-        internalType: "euint8[4]",
-        name: "encryptedVault",
+        internalType: "externalEuint8[4]",
+        name: "externalVault",
         type: "bytes32[4]",
+      },
+      {
+        internalType: "bytes",
+        name: "inputProof",
+        type: "bytes",
       },
     ],
     name: "createRoom",
@@ -610,9 +602,14 @@ export const VAULT_WARS_ABI = [
         type: "uint256",
       },
       {
-        internalType: "euint8[4]",
-        name: "encryptedVault",
+        internalType: "externalEuint8[4]",
+        name: "externalVault",
         type: "bytes32[4]",
+      },
+      {
+        internalType: "bytes",
+        name: "inputProof",
+        type: "bytes",
       },
     ],
     name: "joinRoom",
@@ -911,11 +908,6 @@ export const VAULT_WARS_ABI = [
         name: "lastActiveAt",
         type: "uint256",
       },
-      {
-        internalType: "euint8",
-        name: "vaultCodeLength",
-        type: "bytes32",
-      },
     ],
     stateMutability: "view",
     type: "function",
@@ -928,9 +920,14 @@ export const VAULT_WARS_ABI = [
         type: "uint256",
       },
       {
-        internalType: "euint8[4]",
-        name: "encryptedGuess",
+        internalType: "externalEuint8[4]",
+        name: "externalGuess",
         type: "bytes32[4]",
+      },
+      {
+        internalType: "bytes",
+        name: "inputProof",
+        type: "bytes",
       },
     ],
     name: "submitProbe",

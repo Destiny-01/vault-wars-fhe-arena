@@ -11,8 +11,8 @@ import { Navbar } from "@/components/layout/Navbar";
 import { ConnectWalletModal } from "@/components/wallet/ConnectWalletModal";
 import { RoomCreatedModal } from "@/components/modals/RoomCreatedModal";
 import { HowToPlayModal } from "@/components/modals/HowToPlayModal";
-import { useVaultWarsContract } from "@/hooks/useVaultWarsContract";
 import { useContractEvents } from "@/services/eventHandler";
+import { useVaultWars } from "@/hooks/useVaultWars";
 import { useToast } from "@/hooks/use-toast";
 import { Home, Shuffle } from "lucide-react";
 import { initializeFHE } from "@/lib/fhe";
@@ -28,11 +28,13 @@ export default function CreateRoom() {
       if (event.creator.toLowerCase() === address?.toLowerCase()) {
         setCreatedRoomId(event.roomId);
         setShowRoomCreatedModal(true);
+        console.log(event.roomId, "event.roomId");
+        navigate(`/game/${event.roomId}`);
       }
     },
   });
 
-  const { createRoom, isLoading } = useVaultWarsContract(eventHandlers);
+  const { createRoom, isLoading } = useVaultWars();
 
   const [wager, setWager] = useState("");
   const [vaultCode, setVaultCode] = useState<string[]>(["", "", "", ""]);
@@ -76,7 +78,7 @@ export default function CreateRoom() {
   };
 
   const isVaultComplete = vaultCode.every((digit) => digit !== "");
-  const MIN_WAGER = 0.01;
+  const MIN_WAGER = 0.001;
   const isWagerValid = wager !== "" && parseFloat(wager) >= MIN_WAGER;
   const isFormValid = isVaultComplete && isWagerValid;
 
@@ -114,23 +116,25 @@ export default function CreateRoom() {
       });
 
       const roomId = await createRoom(vaultNumbers, wager);
+      console.log(roomId, "roomId");
 
-      // Room created modal will be shown via event handler
-    } catch (error: any) {
+      if (roomId) {
+        // Persist my vault code for this room to show on defender panel
+        try {
+          const key = `vaultwars.vaultcode.${roomId}.${address?.toLowerCase()}`;
+          localStorage.setItem(key, JSON.stringify(vaultCode));
+        } catch (e) {
+          // ignore storage errors
+        }
+        // Redirect to game page immediately
+        navigate(`/game/${roomId}`);
+      }
+    } catch (error: unknown) {
       console.error("Failed to create room:", error);
       // Error toast already shown by contract hook
     } finally {
       setIsCreating(false);
     }
-  };
-
-  const handleCloseRoomCreatedModal = () => {
-    setShowRoomCreatedModal(false);
-    setCreatedRoomId("");
-  };
-
-  const handleGoToGame = () => {
-    navigate(`/game/${createdRoomId}`);
   };
 
   return (
@@ -161,7 +165,7 @@ export default function CreateRoom() {
                 <Input
                   id="wager"
                   type="number"
-                  step="0.01"
+                  step="0.001"
                   min={MIN_WAGER}
                   placeholder={`${MIN_WAGER} (minimum)`}
                   value={wager}
@@ -268,11 +272,7 @@ export default function CreateRoom() {
         onOpenChange={setShowConnectModal}
       />
 
-      <RoomCreatedModal
-        open={showRoomCreatedModal}
-        onOpenChange={handleCloseRoomCreatedModal}
-        roomId={createdRoomId}
-      />
+      <RoomCreatedModal open={showRoomCreatedModal} roomId={createdRoomId} />
 
       <HowToPlayModal
         isOpen={showHowToPlay}

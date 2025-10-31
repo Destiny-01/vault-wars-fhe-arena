@@ -4,8 +4,9 @@ import {
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
+  usePublicClient,
 } from "wagmi";
-import { parseEther, formatEther } from "viem";
+import { parseEther, formatEther, numberToBytes } from "viem";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "./use-toast";
 import { Contract, ethers } from "ethers";
@@ -63,6 +64,7 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
   const [isLoading, setIsLoading] = useState(false);
   const [contract, setContract] = useState<Contract | null>(null);
   const [isContractReady, setIsContractReady] = useState(false);
+  const publicClient = usePublicClient();
   const [probeCache, setProbeCache] = useState<Map<string, ProbeMetadata[]>>(
     new Map()
   );
@@ -79,12 +81,8 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
 
       setContract(contractInstance);
       setIsContractReady(true);
-
-      return () => {
-        setIsContractReady(false);
-      };
     }
-  }, []);
+  }, [contract]);
 
   // Initialize event handlers separately to avoid spam
   useEffect(() => {
@@ -118,21 +116,31 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
     try {
       setIsLoading(true);
 
+      console.log(isContractReady, contract);
       // Wait for contract to be ready
-      if (!isContractReady || !contract) {
-        throw new Error("Contract not ready");
+      if (!isContractReady && !contract) {
+        return;
       }
 
-      const result = await contract.getRoom(BigInt(roomId));
+      // const a = await contract.nextRoomId();
+      // console.log(a);
+      // const resultt = await contract.getRoom(Number(roomId));
+      const result = (await publicClient.readContract({
+        address: contractConfig.address,
+        abi: contractConfig.abi,
+        functionName: "getRoom",
+        args: [roomId],
+      } as any)) as any;
+      console.log(result);
       const roomData: RoomMetadata = {
-        creator: result.creator,
-        opponent: result.opponent,
-        wager: formatEther(result.wager),
-        phase: Number(result.phase),
-        turnCount: Number(result.turnCount),
-        encryptedWinner: result.encryptedWinner,
-        createdAt: Number(result.createdAt) * 1000,
-        lastActiveAt: Number(result.lastActiveAt) * 1000,
+        creator: result[0],
+        opponent: result[1],
+        wager: formatEther(result[2]),
+        phase: Number(result[3]),
+        turnCount: Number(result[4]),
+        encryptedWinner: result[5],
+        createdAt: Number(result[6]) * 1000,
+        lastActiveAt: Number(result[7]) * 1000,
       };
       console.log({ roomData });
 
@@ -157,7 +165,9 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
         return roomId.length === 4 && !isNaN(Number(roomId));
       }
 
-      const result = await contract.roomExists(BigInt(roomId));
+      console.log(roomId);
+      const result = await contract.roomExists(roomId);
+      console.log(roomId);
       return result;
     } catch (error) {
       console.error("Error checking room existence:", error);
@@ -299,9 +309,13 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
         window.ethereum
       ).getSigner();
       const contractWithSigner = contract.connect(signer) as any;
-      const tx = await contractWithSigner.createRoom(encryptedVault.handles, {
-        value: parseEther(wager),
-      });
+      const tx = await contractWithSigner.createRoom(
+        encryptedVault.handles,
+        encryptedVault.inputProof,
+        {
+          value: parseEther(wager),
+        }
+      );
 
       toast({
         title: "📡 Transaction submitted...",
@@ -347,12 +361,6 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
     try {
       setIsLoading(true);
 
-      // Check if room exists first
-      const exists = await roomExists(roomId);
-      if (!exists) {
-        throw new Error("Room does not exist");
-      }
-
       // Encrypt vault using crypto module
       const encryptedVault = await encryptValue(address, vaultCode);
 
@@ -360,6 +368,7 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
         title: "⚡ Encrypting vault...",
         description: "Securing your code with FHE encryption.",
       });
+      console.log(wager);
 
       if (!contract) {
         // Mock implementation for development
@@ -379,7 +388,8 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
       const contractWithSigner = contract.connect(signer) as any;
       const tx = await contractWithSigner.joinRoom(
         BigInt(roomId),
-        encryptedVault,
+        encryptedVault.handles,
+        encryptedVault.inputProof,
         {
           value: parseEther(wager),
         }
@@ -452,7 +462,8 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
       const contractWithSigner = contract.connect(signer) as any;
       const tx = await contractWithSigner.submitProbe(
         BigInt(roomId),
-        encryptedGuess
+        encryptedGuess.handles,
+        encryptedGuess.inputProof
       );
 
       await tx.wait();

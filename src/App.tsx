@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WagmiProvider } from "wagmi";
 import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { wagmiConfig } from "./config/wagmi";
+import { VaultWarsProvider } from "./contexts/VaultWarsProvider";
 import Index from "./pages/Index";
 import CreateRoom from "./pages/CreateRoom";
 import JoinRoom from "./pages/JoinRoom";
@@ -23,21 +24,23 @@ const App = () => (
   <WagmiProvider config={wagmiConfig}>
     <QueryClientProvider client={queryClient}>
       <RainbowKitProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/create-room" element={<CreateRoom />} />
-              <Route path="/join-room" element={<JoinRoom />} />
-              <Route path="/join" element={<JoinRoom />} />
-              <Route path="/game/:roomId" element={<GameScreen />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
+        <VaultWarsProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/create-room" element={<CreateRoom />} />
+                <Route path="/join-room" element={<JoinRoom />} />
+                <Route path="/join" element={<JoinRoom />} />
+                <Route path="/game/:roomId" element={<GameScreen />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </VaultWarsProvider>
       </RainbowKitProvider>
     </QueryClientProvider>
   </WagmiProvider>
