@@ -1,73 +1,67 @@
-# Welcome to your Lovable project
+# Vault Wars FHE Arena 🔐⚔️
 
-## Project info
+A blockchain-based competitive puzzle game where two players battle to crack each other's vault codes using **Fully Homomorphic Encryption (FHE)**. Built on Ethereum with a cyberpunk-inspired UI.
 
-**URL**: https://lovable.dev/projects/7ac57e4c-6265-4b43-a6f9-885d73b09055
+## 🎮 What is Vault Wars?
 
-## How can I edit this code?
+Think Mastermind meets blockchain gaming. Players create secure vaults with 4-digit codes, wager ETH, and take turns trying to crack each other's encrypted vaults. The twist? Vault codes remain encrypted even during gameplay thanks to FHE, ensuring true privacy until a winner is determined.
 
-There are several ways of editing your application.
+## ✨ Features
 
-**Use Lovable**
+- **🔐 Fully Homomorphic Encryption**: Vault codes stay encrypted during gameplay using Zama's FHE SDK
+- **💰 ETH Wagering**: Set and compete for ETH prizes (winner takes 2x wager)
+- **🎯 Mastermind-Style Gameplay**: Submit encrypted probes and receive "breached" (exact match) and "injured" (digit exists, wrong position) feedback
+- **🔄 Real-Time Updates**: Live game state synchronization via blockchain events
+- **🎨 Cyberpunk UI**: Matrix-inspired interface with smooth animations and dark theme
+- **👛 Wallet Integration**: Connect with RainbowKit and MetaMask
+- **📱 Responsive Design**: Play on desktop or mobile devices
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/7ac57e4c-6265-4b43-a6f9-885d73b09055) and start prompting.
+## 🚀 Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js 18+ and npm/yarn/bun
+- MetaMask or compatible Web3 wallet
+- Testnet ETH (for Sepolia testnet)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+# Install dependencies
+npm install
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start development server
 npm run dev
+
+# Build for production
+npm run build
 ```
 
-**Edit a file directly in GitHub**
+### Environment Variables
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Create a `.env` file:
 
-**Use GitHub Codespaces**
+```env
+VITE_CONTRACT_ADDRESS=your_contract_address_here
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🎯 How to Play
 
-## What technologies are used for this project?
+1. **Create a Room**: Set your 4-digit vault code (all digits must be unique) and wager ETH
+2. **Wait for Opponent**: Share your room link or wait for someone to join
+3. **Take Turns**: Players alternate submitting encrypted guesses
+4. **Crack the Vault**: First player to guess the opponent's code wins 2x the wager
+5. **Claim Prize**: Winners can claim their reward directly from the smart contract
 
-This project is built with:
+## 🛠️ Tech Stack
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- **Frontend**: React 18 + TypeScript + Vite
+- **UI**: Tailwind CSS + shadcn/ui + Radix UI
+- **Blockchain**: wagmi + viem + ethers.js
+- **Wallet**: RainbowKit
+- **Encryption**: @zama-fhe/relayer-sdk
+- **Routing**: React Router v6
 
-## How can I deploy this project?
+## 📄 License
 
-Simply open [Lovable](https://lovable.dev/projects/7ac57e4c-6265-4b43-a6f9-885d73b09055) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+MIT
