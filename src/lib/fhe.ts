@@ -17,7 +17,21 @@ export async function initializeFHE() {
       console.log("Checking available global objects...");
 
       console.log("Calling initSDK()...");
-      await initSDK();
+      try {
+        await initSDK();
+      } catch (cdnError) {
+        // If CDN fails (usually CORS), fallback to local WASM files
+        console.warn(
+          "⚠️ CDN initialization failed, falling back to local WASM files:",
+          cdnError
+        );
+        console.log("🔄 Trying local WASM files from public folder...");
+        await initSDK({
+          tfheParams: "/tfhe_bg.wasm",
+          kmsParams: "/kms_lib_bg.wasm",
+        });
+        console.log("✅ FHEVM SDK initialized with local WASM files");
+      }
       console.log("initSDK() completed");
 
       relayer = await createInstance(SepoliaConfig);

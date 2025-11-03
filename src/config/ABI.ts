@@ -127,6 +127,19 @@ export const VAULT_WARS_ABI = [
     anonymous: false,
     inputs: [
       {
+        indexed: false,
+        internalType: "string",
+        name: "message",
+        type: "string",
+      },
+    ],
+    name: "Log",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: true,
         internalType: "address",
         name: "previousOwner",
@@ -948,4 +961,4 @@ export const VAULT_WARS_ABI = [
     stateMutability: "nonpayable",
     type: "function",
   },
-] as const;
+];
