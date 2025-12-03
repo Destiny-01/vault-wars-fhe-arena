@@ -36,7 +36,7 @@ export default function CreateRoom() {
 
   const { createRoom, isLoading } = useVaultWars();
 
-  const [wager, setWager] = useState("");
+  const [wager, setWager] = useState("0.001");
   const [vaultCode, setVaultCode] = useState<string[]>(["", "", "", ""]);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [showRoomCreatedModal, setShowRoomCreatedModal] = useState(false);

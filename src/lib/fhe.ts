@@ -2,11 +2,12 @@
 import {
   createInstance,
   FhevmInstance,
-  HandleContractPair,
+  PublicDecryptResults,
+  UserDecryptResults,
   SepoliaConfig,
+  initSDK,
 } from "@zama-fhe/relayer-sdk/bundle";
-import { Wallet } from "ethers";
-import { initSDK } from "@zama-fhe/relayer-sdk/bundle";
+import { Signer, Wallet } from "ethers";
 
 let relayer: FhevmInstance | null = null;
 const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS!;
@@ -59,10 +60,10 @@ export async function getFhevmInstance() {
  * - returns ciphertext string (store onchain in your contract)
  */
 export async function encryptValue(address: string, plainDigits: number[]) {
-  if (!relayer) throw new Error("Relayer not initialized");
+  const instance = await getFhevmInstance();
 
   console.log("syat");
-  const inputHandle = relayer.createEncryptedInput(contractAddress, address);
+  const inputHandle = instance.createEncryptedInput(contractAddress, address);
   for (const d of plainDigits) {
     inputHandle.add8(d); // add8 is an SDK helper in examples
   }
@@ -73,63 +74,11 @@ export async function encryptValue(address: string, plainDigits: number[]) {
 }
 
 /**
- * Request user decryption via relayer:
- * - if result was returned re-encrypted for user, relayer will deliver ciphertext and user decrypts locally
- * - depending on SDK, relayer may return plaintext directly after EIP-712 auth
- */
-export async function requestUserDecryption(
-  signer: Wallet,
-  ciphertextHandle: string
-) {
-  if (!relayer) throw new Error("Relayer not initialized");
-
-  const keypair = relayer.generateKeypair();
-  const handleContractPairs: HandleContractPair[] = [
-    {
-      handle: ciphertextHandle,
-      contractAddress: contractAddress,
-    },
-  ];
-  const startTimeStamp = Math.floor(Date.now() / 1000).toString();
-  const durationDays = "10"; // String for consistency
-  const contractAddresses = [contractAddress];
-
-  const eip712 = relayer.createEIP712(
-    keypair.publicKey,
-    contractAddresses,
-    startTimeStamp,
-    durationDays
-  );
-
-  const signature = await signer.signTypedData(
-    eip712.domain,
-    {
-      UserDecryptRequestVerification:
-        eip712.types.UserDecryptRequestVerification,
-    },
-    eip712.message
-  );
-
-  const result = await relayer.userDecrypt(
-    handleContractPairs,
-    keypair.privateKey,
-    keypair.publicKey,
-    signature.replace("0x", ""),
-    contractAddresses,
-    signer.address,
-    startTimeStamp,
-    durationDays
-  );
-
-  const decryptedValue = result[ciphertextHandle];
-
-  return decryptedValue;
-}
-
-/**
  * Fetch a public decryption (if outputs are public)
  */
-export async function fetchPublicDecryption(handles: string[]): Promise<any> {
-  if (!relayer) throw new Error("Relayer not initialized");
-  return relayer.publicDecrypt(handles);
+export async function fetchPublicDecryption(
+  handles: (string | Uint8Array)[]
+): Promise<PublicDecryptResults> {
+  const instance = await getFhevmInstance();
+  return instance.publicDecrypt(handles);
 }

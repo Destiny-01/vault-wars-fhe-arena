@@ -20,7 +20,7 @@ import { parseEther, formatEther } from "viem";
 import { useToast } from "@/hooks/use-toast";
 import { eventHandler, EventHandlers } from "@/services/eventHandler";
 import { VAULT_WARS_ABI } from "@/config/ABI";
-import { encryptValue } from "@/lib/fhe";
+import { encryptValue, fetchPublicDecryption } from "@/lib/fhe";
 import { RoomPhase } from "@/types/game";
 import { VaultWarsContext } from "@/hooks/useVaultWars";
 
@@ -104,7 +104,7 @@ export interface VaultWarsContextValue {
   submitProbe: (roomId: string, guessCode: number[]) => Promise<void>;
   cancelRoom: (roomId: string) => Promise<void>;
   claimTimeout: (roomId: string) => Promise<void>;
-  requestWinnerDecryption: (roomId: string) => Promise<void>;
+  fulfillWinnerDecryption: (roomId: string) => Promise<void>;
 
   // Room state management
   setCurrentRoom: (roomId: string | null) => void;
@@ -146,6 +146,7 @@ export const VaultWarsProvider = ({
 
   // Deduplication for ResultComputed events
   const processedResultsRef = useRef<Set<string>>(new Set());
+  const winnerFinalizationInFlightRef = useRef<Set<string>>(new Set());
 
   // Track if guesses for current room have been restored from storage
   const guessesLoadedRef = useRef<boolean>(false);
@@ -182,6 +183,8 @@ export const VaultWarsProvider = ({
   useEffect(() => {
     if (!currentRoomId) return;
     if (!guessesLoadedRef.current) return;
+    // Only save if there are actual guesses (not empty array)
+    if (roomGuesses.length === 0) return;
     const key = `vaultwars.guesses.${currentRoomId}`;
     try {
       localStorage.setItem(key, JSON.stringify(roomGuesses));
@@ -224,6 +227,191 @@ export const VaultWarsProvider = ({
       }
     },
     [provider]
+  );
+
+  const finalizeWinnerOnChain = useCallback(
+    async (roomIdInput: string, options?: { silent?: boolean }) => {
+      const roomId = roomIdInput?.toString();
+      const silent = options?.silent ?? false;
+
+      if (!contract) {
+        const message = "Contract not initialized";
+        if (!silent) {
+          throw new Error(message);
+        }
+        console.warn(`[VaultWars] ${message}, skipping winner finalization.`);
+        return;
+      }
+
+      if (typeof window === "undefined" || !window.ethereum) {
+        const message = "Browser wallet unavailable";
+        if (!silent) {
+          throw new Error(message);
+        }
+        console.warn(`[VaultWars] ${message}, skipping winner finalization.`);
+        return;
+      }
+
+      if (!address) {
+        const message = "Wallet not connected";
+        if (!silent) {
+          throw new Error(message);
+        }
+        console.warn(`[VaultWars] ${message}, skipping winner finalization.`);
+        return;
+      }
+
+      if (winnerFinalizationInFlightRef.current.has(roomId)) {
+        if (!silent) {
+          toast({
+            title: "Finalization in progress",
+            description: "Winner finalization is already running.",
+          });
+        }
+        return;
+      }
+
+      winnerFinalizationInFlightRef.current.add(roomId);
+
+      const stopLoading = () => {
+        if (!silent) {
+          setIsLoading(false);
+        }
+        winnerFinalizationInFlightRef.current.delete(roomId);
+      };
+
+      try {
+        if (!silent) {
+          setIsLoading(true);
+          toast({
+            title: "🔐 Finalizing winner",
+            description: "Decrypting winner handle and submitting on-chain...",
+          });
+        } else {
+          console.log(`[VaultWars] Auto finalizing winner for room ${roomId}`);
+        }
+
+        const signer = await new BrowserProvider(window.ethereum).getSigner();
+        const contractWithSigner = contract.connect(signer) as Contract;
+
+        let encryptedWinnerHandle: string | undefined =
+          currentRoomId === roomId ? roomData?.encryptedWinner : undefined;
+
+        if (
+          !encryptedWinnerHandle ||
+          encryptedWinnerHandle === ethers.ZeroHash
+        ) {
+          const latestRoom = await contract.getRoom(BigInt(roomId));
+          encryptedWinnerHandle = latestRoom?.[5];
+        }
+
+        if (
+          !encryptedWinnerHandle ||
+          encryptedWinnerHandle === ethers.ZeroHash
+        ) {
+          throw new Error(
+            "Winner ciphertext not ready yet. Please wait for the ResultComputed event."
+          );
+        }
+
+        const winnerHandle = encryptedWinnerHandle as `0x${string}`;
+        const { abiEncodedClearValues, decryptionProof, clearValues } =
+          await fetchPublicDecryption([winnerHandle]);
+
+        const decryptedWinner = clearValues?.[winnerHandle] as
+          | `0x${string}`
+          | undefined;
+
+        const tx = await contractWithSigner.fulfillDecryption(
+          BigInt(roomId),
+          abiEncodedClearValues,
+          decryptionProof
+        );
+        await tx.wait();
+
+        if (!silent) {
+          toast({
+            title: "🏁 Winner submitted",
+            description: decryptedWinner
+              ? `Winner ${decryptedWinner} finalized on-chain.`
+              : "Winner finalized on-chain.",
+          });
+        } else {
+          console.log(
+            `[VaultWars] Winner finalized for room ${roomId}: ${decryptedWinner}`
+          );
+        }
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("vaultwars:reward-finalized", {
+              detail: {
+                roomId,
+                winner: decryptedWinner,
+              },
+            })
+          );
+        }
+
+        if (currentRoomId === roomId) {
+          void loadRoomData(roomId);
+        }
+      } catch (error: any) {
+        const normalizedMessage = (error?.message || "").toLowerCase();
+        const alreadyFinalized =
+          normalizedMessage.includes("game not in progress") ||
+          normalizedMessage.includes("already finalized");
+
+        if (alreadyFinalized) {
+          if (!silent) {
+            toast({
+              title: "🏁 Winner already finalized",
+              description: "Payout has already been processed on-chain.",
+            });
+          }
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("vaultwars:reward-finalized", {
+                detail: { roomId },
+              })
+            );
+          }
+          return;
+        }
+
+        console.error("Error fulfilling decryption:", error);
+        const description =
+          error?.message ||
+          "Automatic winner finalization failed. Please retry.";
+
+        toast({
+          title: silent
+            ? "⚠️ Finalization pending"
+            : "❌ Failed to finalize winner",
+          description,
+          variant: "destructive",
+        });
+
+        throw error;
+      } finally {
+        stopLoading();
+      }
+    },
+    [
+      address,
+      contract,
+      currentRoomId,
+      loadRoomData,
+      roomData?.encryptedWinner,
+      toast,
+    ]
+  );
+
+  const fulfillWinnerDecryption = useCallback(
+    async (roomId: string): Promise<void> => {
+      await finalizeWinnerOnChain(roomId);
+    },
+    [finalizeWinnerOnChain]
   );
 
   // Initialize contract
@@ -350,6 +538,15 @@ export const VaultWarsProvider = ({
 
             // Show win/loss modal if this is a winning guess
             if (event.isWin) {
+              finalizeWinnerOnChain(event.roomId, { silent: true }).catch(
+                (error) => {
+                  console.error(
+                    "[VaultWars] Auto winner finalization failed:",
+                    error
+                  );
+                }
+              );
+
               if (isPlayerResult) {
                 // Player won - show win modal
                 toast({
@@ -407,12 +604,26 @@ export const VaultWarsProvider = ({
           if (event.roomId === currentRoomId?.toString()) {
             toast({
               title: "🎉 Game Complete",
-              description: `Payout of ${event.amount} ETH processed!`,
+              description: `Payout of ${formatEther(
+                BigInt(event.amount)
+              )} ETH processed!`,
             });
             // Refresh room data to get final state
             if (currentRoomId) {
               loadRoomData(currentRoomId);
             }
+          }
+
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("vaultwars:reward-finalized", {
+                detail: {
+                  roomId: String(event.roomId),
+                  winner: event.winner,
+                  amount: event.amount,
+                },
+              })
+            );
           }
         },
       };
@@ -435,6 +646,8 @@ export const VaultWarsProvider = ({
     address,
     toast,
     loadRoomData,
+    roomData?.wager,
+    finalizeWinnerOnChain,
   ]);
 
   // No persistence — currentRoomId is strictly derived from URL per spec
@@ -666,6 +879,14 @@ export const VaultWarsProvider = ({
           window.ethereum
         ).getSigner();
         const contractWithSigner = contract.connect(signer) as any;
+
+        console.log(
+          signer,
+          contractWithSigner,
+          encryptedVault.handles,
+          encryptedVault.inputProof,
+          parseEther(wager)
+        );
         const tx = await contractWithSigner.createRoom(
           encryptedVault.handles,
           encryptedVault.inputProof,
@@ -952,59 +1173,6 @@ export const VaultWarsProvider = ({
     [address, contract, toast]
   );
 
-  const requestWinnerDecryption = useCallback(
-    async (roomId: string): Promise<void> => {
-      if (!address) {
-        throw new Error("Wallet not connected");
-      }
-
-      try {
-        setIsLoading(true);
-
-        toast({
-          title: "🔓 Requesting decryption...",
-          description: "Asking gateway to decrypt the winner.",
-        });
-
-        if (!contract) {
-          // Mock implementation
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-
-          toast({
-            title: "🔍 Decryption requested",
-            description: "Gateway is processing winner decryption.",
-          });
-          return;
-        }
-
-        const signer = await new ethers.BrowserProvider(
-          window.ethereum
-        ).getSigner();
-        const contractWithSigner = contract.connect(signer) as any;
-        const tx = await contractWithSigner.requestWinnerDecryption(
-          BigInt(roomId)
-        );
-        await tx.wait();
-
-        toast({
-          title: "🔍 Decryption requested",
-          description: "Gateway is processing winner decryption.",
-        });
-      } catch (error: any) {
-        console.error("Error requesting decryption:", error);
-        toast({
-          title: "❌ Failed to request decryption",
-          description: error.message || "Transaction failed.",
-          variant: "destructive",
-        });
-        throw error;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [address, contract, toast]
-  );
-
   // Room state management
   const setCurrentRoom = useCallback((roomId: string | null) => {
     setCurrentRoomId(roomId);
@@ -1079,7 +1247,7 @@ export const VaultWarsProvider = ({
     submitProbe,
     cancelRoom,
     claimTimeout,
-    requestWinnerDecryption,
+    fulfillWinnerDecryption,
 
     // Room state management
     setCurrentRoom,

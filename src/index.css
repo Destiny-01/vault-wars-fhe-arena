@@ -44,21 +44,33 @@
     --neon-pink: 320 100% 70%;
     --matrix-green: 120 100% 40%;
     --cyber-blue: 200 100% 60%;
-    
+
     /* Glowing effects */
     --glow-primary: 185 100% 50%;
     --glow-accent: 300 100% 50%;
     --glow-success: 120 100% 50%;
-    
+
     /* Gradients */
-    --gradient-cyber: linear-gradient(135deg, hsl(185 100% 50%), hsl(270 100% 60%));
-    --gradient-vault: linear-gradient(45deg, hsl(300 100% 50%), hsl(185 100% 50%));
-    --gradient-matrix: linear-gradient(180deg, hsl(220 30% 3%), hsl(220 25% 8%));
-    
+    --gradient-cyber: linear-gradient(
+      135deg,
+      hsl(185 100% 50%),
+      hsl(270 100% 60%)
+    );
+    --gradient-vault: linear-gradient(
+      45deg,
+      hsl(300 100% 50%),
+      hsl(185 100% 50%)
+    );
+    --gradient-matrix: linear-gradient(
+      180deg,
+      hsl(220 30% 3%),
+      hsl(220 25% 8%)
+    );
+
     /* Animations */
     --transition-glow: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --animation-glitch: glitch 2s infinite;
-    
+
     --radius: 0.75rem;
 
     --sidebar-background: 0 0% 98%;
@@ -109,33 +121,169 @@
 
   body {
     @apply bg-background text-foreground overflow-x-hidden;
-    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-family: "JetBrains Mono", "Courier New", monospace;
+  }
+
+  /* Mobile font size reductions */
+  @media (max-width: 640px) {
+    html {
+      font-size: 14px;
+    }
+
+    h1 {
+      font-size: 1.5rem !important;
+    }
+    h2 {
+      font-size: 1.25rem !important;
+    }
+    h3 {
+      font-size: 1.125rem !important;
+    }
+
+    .text-xl {
+      font-size: 1rem !important;
+    }
+    .text-2xl {
+      font-size: 1.25rem !important;
+    }
+    .text-3xl {
+      font-size: 1.5rem !important;
+    }
+    .text-4xl {
+      font-size: 1.75rem !important;
+    }
   }
 
   /* Cyberpunk animations */
   @keyframes glitch {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-2px); }
-    40% { transform: translateX(2px); }
-    60% { transform: translateX(-1px); }
-    80% { transform: translateX(1px); }
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-2px);
+    }
+    40% {
+      transform: translateX(2px);
+    }
+    60% {
+      transform: translateX(-1px);
+    }
+    80% {
+      transform: translateX(1px);
+    }
   }
 
   @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 10px hsl(var(--glow-primary) / 0.5); }
-    50% { box-shadow: 0 0 20px hsl(var(--glow-primary) / 0.8), 0 0 30px hsl(var(--glow-primary) / 0.4); }
+    0%,
+    100% {
+      box-shadow: 0 0 10px hsl(var(--glow-primary) / 0.5);
+    }
+    50% {
+      box-shadow: 0 0 20px hsl(var(--glow-primary) / 0.8),
+        0 0 30px hsl(var(--glow-primary) / 0.4);
+    }
   }
 
   @keyframes matrix-rain {
-    0% { transform: translateY(-100vh); opacity: 0; }
-    10% { opacity: 1; }
-    90% { opacity: 1; }
-    100% { transform: translateY(100vh); opacity: 0; }
+    0% {
+      transform: translateY(-100vh);
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(100vh);
+      opacity: 0;
+    }
   }
 
   @keyframes code-scroll {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes pulse-breach {
+    0%,
+    100% {
+      box-shadow: 0 0 10px hsl(120 100% 50% / 0.5);
+      transform: scale(1);
+    }
+    50% {
+      box-shadow: 0 0 20px hsl(120 100% 50% / 0.8),
+        0 0 30px hsl(120 100% 50% / 0.4);
+      transform: scale(1.05);
+    }
+  }
+
+  @keyframes pulse-signal {
+    0%,
+    100% {
+      box-shadow: 0 0 10px hsl(60 100% 50% / 0.5);
+      transform: scale(1);
+    }
+    50% {
+      box-shadow: 0 0 20px hsl(60 100% 50% / 0.8),
+        0 0 30px hsl(60 100% 50% / 0.4);
+      transform: scale(1.05);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes bounce-subtle {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
+  @keyframes pulse-subtle {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+
+  .animate-pulse-breach {
+    animation: pulse-breach 2s ease-in-out infinite;
+  }
+
+  .animate-pulse-signal {
+    animation: pulse-signal 2s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 3s linear infinite;
+  }
+
+  .animate-bounce-subtle {
+    animation: bounce-subtle 1s ease-in-out infinite;
+  }
+
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s ease-in-out infinite;
   }
 
   /* Utility classes */
@@ -157,7 +305,12 @@
 
   .cyber-border {
     border: 1px solid hsl(var(--primary) / 0.5);
-    background: linear-gradient(45deg, transparent, hsl(var(--primary) / 0.1), transparent);
+    background: linear-gradient(
+      45deg,
+      transparent,
+      hsl(var(--primary) / 0.1),
+      transparent
+    );
   }
 
   .matrix-bg {
@@ -167,16 +320,27 @@
   }
 
   .matrix-bg::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background-image: 
-      radial-gradient(1px 1px at 20px 30px, hsl(var(--neon-green) / 0.3), transparent),
-      radial-gradient(1px 1px at 40px 70px, hsl(var(--primary) / 0.2), transparent),
-      radial-gradient(2px 2px at 90px 40px, hsl(var(--accent) / 0.2), transparent);
+    background-image: radial-gradient(
+        1px 1px at 20px 30px,
+        hsl(var(--neon-green) / 0.3),
+        transparent
+      ),
+      radial-gradient(
+        1px 1px at 40px 70px,
+        hsl(var(--primary) / 0.2),
+        transparent
+      ),
+      radial-gradient(
+        2px 2px at 90px 40px,
+        hsl(var(--accent) / 0.2),
+        transparent
+      );
     background-size: 100px 100px;
     animation: matrix-rain 20s linear infinite;
   }

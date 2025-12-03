@@ -1,0 +1,3 @@
+[submodule "hardhat"]
+	path = hardhat
+	url = https://github.com/Destiny-01/vault-wars-ca

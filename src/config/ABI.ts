@@ -1,50 +1,12 @@
 export const VAULT_WARS_ABI = [
   {
-    inputs: [
-      {
-        internalType: "address",
-        name: "_gatewayAddress",
-        type: "address",
-      },
-    ],
-    stateMutability: "nonpayable",
-    type: "constructor",
-  },
-  {
-    inputs: [],
-    name: "HandlesAlreadySavedForRequestID",
-    type: "error",
-  },
-  {
     inputs: [],
     name: "InvalidKMSSignatures",
     type: "error",
   },
   {
     inputs: [],
-    name: "NoHandleFoundForRequestID",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "owner",
-        type: "address",
-      },
-    ],
-    name: "OwnableInvalidOwner",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "OwnableUnauthorizedAccount",
+    name: "ZamaProtocolUnsupported",
     type: "error",
   },
   {
@@ -64,38 +26,6 @@ export const VAULT_WARS_ABI = [
       },
     ],
     name: "ConfigUpdated",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "requestID",
-        type: "uint256",
-      },
-    ],
-    name: "DecryptionFulfilled",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "roomId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "requestId",
-        type: "uint256",
-      },
-    ],
-    name: "DecryptionRequested",
     type: "event",
   },
   {
@@ -128,31 +58,18 @@ export const VAULT_WARS_ABI = [
     inputs: [
       {
         indexed: false,
-        internalType: "string",
-        name: "message",
-        type: "string",
-      },
-    ],
-    name: "Log",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "previousOwner",
-        type: "address",
+        internalType: "bytes32[]",
+        name: "handlesList",
+        type: "bytes32[]",
       },
       {
-        indexed: true,
-        internalType: "address",
-        name: "newOwner",
-        type: "address",
+        indexed: false,
+        internalType: "bytes",
+        name: "abiEncodedCleartexts",
+        type: "bytes",
       },
     ],
-    name: "OwnershipTransferred",
+    name: "PublicDecryptionVerified",
     type: "event",
   },
   {
@@ -237,12 +154,6 @@ export const VAULT_WARS_ABI = [
         internalType: "uint256",
         name: "wager",
         type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "token",
-        type: "address",
       },
     ],
     name: "RoomCreated",
@@ -345,6 +256,19 @@ export const VAULT_WARS_ABI = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "confidentialProtocolId",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       {
         internalType: "externalEuint8[4]",
@@ -372,7 +296,7 @@ export const VAULT_WARS_ABI = [
     inputs: [
       {
         internalType: "uint256",
-        name: "requestId",
+        name: "roomId",
         type: "uint256",
       },
       {
@@ -387,27 +311,8 @@ export const VAULT_WARS_ABI = [
       },
     ],
     name: "fulfillDecryption",
-    outputs: [
-      {
-        internalType: "bytes4",
-        name: "",
-        type: "bytes4",
-      },
-    ],
+    outputs: [],
     stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "gatewayAddress",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
     type: "function",
   },
   {
@@ -645,19 +550,6 @@ export const VAULT_WARS_ABI = [
   },
   {
     inputs: [],
-    name: "maxTurns",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
     name: "minWager",
     outputs: [
       {
@@ -690,19 +582,6 @@ export const VAULT_WARS_ABI = [
         internalType: "uint256",
         name: "",
         type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "owner",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
       },
     ],
     stateMutability: "view",
@@ -782,58 +661,6 @@ export const VAULT_WARS_ABI = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "protocolId",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "pure",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "renounceOwnership",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    name: "requestIdToRoom",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "roomId",
-        type: "uint256",
-      },
-    ],
-    name: "requestWinnerDecryption",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
     inputs: [
       {
         internalType: "uint256",
@@ -847,25 +674,6 @@ export const VAULT_WARS_ABI = [
         internalType: "bool",
         name: "",
         type: "bool",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    name: "roomToRequestId",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
       },
     ],
     stateMutability: "view",
@@ -944,19 +752,6 @@ export const VAULT_WARS_ABI = [
       },
     ],
     name: "submitProbe",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "newOwner",
-        type: "address",
-      },
-    ],
-    name: "transferOwnership",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

@@ -12,7 +12,7 @@ import { useToast } from "./use-toast";
 import { Contract, ethers } from "ethers";
 import { eventHandler, EventHandlers } from "@/services/eventHandler";
 import { VAULT_WARS_ABI } from "@/config/ABI";
-import { encryptValue } from "@/lib/fhe";
+import { encryptValue, fetchPublicDecryption } from "@/lib/fhe";
 
 // Contract address - replace with actual deployed address
 const VAULT_WARS_CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS!;
@@ -571,7 +571,7 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
     }
   };
 
-  const requestWinnerDecryption = async (roomId: string): Promise<void> => {
+  const fulfillWinnerDecryption = async (roomId: string): Promise<void> => {
     if (!address) {
       throw new Error("Wallet not connected");
     }
@@ -580,17 +580,15 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
       setIsLoading(true);
 
       toast({
-        title: "🔓 Requesting decryption...",
-        description: "Asking gateway to decrypt the winner.",
+        title: "🔐 Finalizing winner",
+        description: "Decrypting winner handle and submitting on-chain...",
       });
 
       if (!contract) {
-        // Mock implementation
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
+        await new Promise((resolve) => setTimeout(resolve, 1500));
         toast({
-          title: "🔍 Decryption requested",
-          description: "Gateway is processing winner decryption.",
+          title: "✅ Winner decrypted (mock)",
+          description: "Mock flow completed.",
         });
         return;
       }
@@ -599,19 +597,40 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
         window.ethereum
       ).getSigner();
       const contractWithSigner = contract.connect(signer) as any;
-      const tx = await contractWithSigner.requestWinnerDecryption(
-        BigInt(roomId)
+
+      const latestRoom = await contract.getRoom(BigInt(roomId));
+      const encryptedWinnerHandle = latestRoom?.[5];
+
+      if (!encryptedWinnerHandle || encryptedWinnerHandle === ethers.ZeroHash) {
+        throw new Error(
+          "Winner ciphertext not ready yet. Please wait for the ResultComputed event."
+        );
+      }
+
+      const { abiEncodedClearValues, decryptionProof, clearValues } =
+        await fetchPublicDecryption([encryptedWinnerHandle]);
+
+      const decryptedWinner = clearValues?.[
+        encryptedWinnerHandle as `0x${string}`
+      ] as `0x${string}` | undefined;
+
+      const tx = await contractWithSigner.fulfillDecryption(
+        BigInt(roomId),
+        abiEncodedClearValues,
+        decryptionProof
       );
       await tx.wait();
 
       toast({
-        title: "🔍 Decryption requested",
-        description: "Gateway is processing winner decryption.",
+        title: "🏁 Winner submitted",
+        description: decryptedWinner
+          ? `Winner ${decryptedWinner} finalized on-chain.`
+          : "Winner finalized on-chain.",
       });
     } catch (error: any) {
-      console.error("Error requesting decryption:", error);
+      console.error("Error fulfilling decryption:", error);
       toast({
-        title: "❌ Failed to request decryption",
+        title: "❌ Failed to finalize winner",
         description: error.message || "Transaction failed.",
         variant: "destructive",
       });
@@ -644,7 +663,7 @@ export function useVaultWarsContract(eventHandlers?: EventHandlers) {
     submitProbe,
     cancelRoom,
     claimTimeout,
-    requestWinnerDecryption,
+    fulfillWinnerDecryption,
 
     // Utils
     // refetchWins,

@@ -9,6 +9,7 @@ import { Contract, EventLog, Log } from "ethers";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { getFhevmInstance, fetchPublicDecryption } from "@/lib/fhe";
+import { formatEther } from "viem";
 
 // Event type definitions
 export interface ContractEvent {
@@ -45,10 +46,6 @@ export interface ResultComputedEvent extends ContractEvent {
   signals: number; // decrypted euint8
 }
 
-export interface DecryptionRequestedEvent extends ContractEvent {
-  requestId: string;
-}
-
 export interface WinnerDecryptedEvent extends ContractEvent {
   winner: string;
   signature?: string;
@@ -70,7 +67,6 @@ export type EventHandlers = {
   onVaultSubmitted?: (event: VaultSubmittedEvent) => void;
   onProbeSubmitted?: (event: ProbeSubmittedEvent) => void;
   onResultComputed?: (event: ResultComputedEvent) => void;
-  onDecryptionRequested?: (event: DecryptionRequestedEvent) => void;
   onWinnerDecrypted?: (event: WinnerDecryptedEvent) => void;
   onGameFinished?: (event: GameFinishedEvent) => void;
   onRoomCancelled?: (event: RoomCancelledEvent) => void;
@@ -273,21 +269,49 @@ class VaultWarsEventHandler {
                 event
               );
               await getFhevmInstance();
-              const handleStrings: string[] = [
-                args[2]?.toString?.() ?? String(args[2]), // isWinHandle
-                ...[0, 1, 2, 3].map(
-                  (i) => args[3]?.[i]?.toString?.() ?? String(args[3]?.[i]) // guessHandles[i]
-                ),
-                args[4]?.toString?.() ?? String(args[4]), // breachesHandle
-                args[5]?.toString?.() ?? String(args[5]), // signalsHandle
+              const normalizeHandle = (value: unknown): `0x${string}` => {
+                if (typeof value === "string") {
+                  return (
+                    value.startsWith("0x") ? value : `0x${value}`
+                  ) as `0x${string}`;
+                }
+                if (typeof value === "bigint") {
+                  return `0x${value.toString(16)}` as `0x${string}`;
+                }
+                if (value instanceof Uint8Array) {
+                  return `0x${Array.from(value)
+                    .map((byte) => byte.toString(16).padStart(2, "0"))
+                    .join("")}` as `0x${string}`;
+                }
+                if (value && typeof value === "object" && "toString" in value) {
+                  return normalizeHandle(
+                    (value as { toString: () => string }).toString()
+                  );
+                }
+                throw new Error("Invalid ciphertext handle");
+              };
+
+              const handleStrings: `0x${string}`[] = [
+                normalizeHandle(args[2]), // isWinHandle
+                ...[0, 1, 2, 3].map((i) => normalizeHandle(args[3]?.[i])), // guessHandles
+                normalizeHandle(args[4]), // breachesHandle
+                normalizeHandle(args[5]), // signalsHandle
               ];
 
-              const decryptedMap = await fetchPublicDecryption(handleStrings);
+              const { clearValues } = await fetchPublicDecryption(
+                handleStrings
+              );
 
               const resolve = (idx: number) => {
                 const key = handleStrings[idx];
-                const val = decryptedMap?.[key];
-                return typeof val === "string" ? Number(val) : Number(val ?? 0);
+                const val = clearValues?.[key];
+                if (typeof val === "string") {
+                  return Number(BigInt(val));
+                }
+                if (typeof val === "bigint") {
+                  return Number(val);
+                }
+                return Number(val ?? 0);
               };
 
               const isWin = Boolean(resolve(0));
@@ -319,22 +343,6 @@ class VaultWarsEventHandler {
               );
             }
           })();
-          break;
-        }
-
-        case "DecryptionRequested": {
-          const decryptionRequestedData: DecryptionRequestedEvent = {
-            roomId: String(args[0]),
-            requestId: String(args[1]),
-            transactionHash: event.transactionHash,
-            blockNumber: event.blockNumber,
-            timestamp: Date.now(),
-          };
-          console.log(
-            "[EventHandler] DecryptionRequested:",
-            decryptionRequestedData
-          );
-          this.handlers.onDecryptionRequested?.(decryptionRequestedData);
           break;
         }
 
@@ -493,7 +501,9 @@ export function useContractEvents(handlers: EventHandlers) {
     onGameFinished: (event) => {
       toast({
         title: "🎉 Game Complete",
-        description: `Payout of ${event.amount} ETH processed!`,
+        description: `Payout of ${formatEther(
+          BigInt(event.amount)
+        )} ETH processed!`,
       });
       handlers.onGameFinished?.(event);
       // Auto-redirect after game completion
@@ -512,7 +522,6 @@ export function useContractEvents(handlers: EventHandlers) {
 
     // Pass through other handlers as-is
     onVaultSubmitted: handlers.onVaultSubmitted,
-    onDecryptionRequested: handlers.onDecryptionRequested,
   };
 
   return enhancedHandlers;
