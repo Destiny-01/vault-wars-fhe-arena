@@ -40,57 +40,17 @@ Without FHE, Vault Wars would be impossible to build as a trustless blockchain g
 
 ## 🔐 FHE Integration Deep Dive
 
-### What FHE Drives
+Fully Homomorphic Encryption is the **core technology** that makes Vault Wars possible. The game leverages FHE throughout its entire lifecycle:
 
-Fully Homomorphic Encryption is the **core technology** that makes Vault Wars possible. It drives every critical aspect of the game:
+**Vault Code Encryption**: All 4-digit vault codes are encrypted using `euint8[4]` arrays before being submitted to the contract. These encrypted vaults remain on-chain throughout the game without ever being decrypted.
 
-1. **Vault Code Encryption**: All 4-digit vault codes are encrypted using `euint8[4]` arrays before being submitted to the contract
-2. **Encrypted Game Logic Computation**: The entire breaches/signals calculation runs on encrypted data using FHE operations
-3. **Encrypted Winner Determination**: Winner addresses are stored as `eaddress` (encrypted address handles) until game finalization
-4. **Public Output Decryption**: Game feedback (breaches, signals, isWin) is made publicly decryptable for display while keeping inputs private
+**Encrypted Game Logic**: The entire breaches/signals calculation runs on encrypted data. The `_computeBreachesAndSignals()` function performs all comparisons using FHE operations like `FHE.eq()`, `FHE.select()`, and `FHE.add()`, ensuring that vault codes and guesses never need to be decrypted during computation.
 
-### FHE Utilization Extent
+**Encrypted Winner Determination**: Winner addresses are stored as `eaddress` (encrypted address handles) until game finalization. This ensures that even the winner's identity remains private until the game is complete.
 
-Vault Wars **maximizes FHE usage** throughout the entire game lifecycle:
+**Public Output Decryption**: Game feedback (breaches, signals, isWin) is made publicly decryptable via `FHE.makePubliclyDecryptable()` after computation completes, allowing players to see results without revealing their inputs.
 
-- **100% of vault codes** are encrypted (`euint8[4]` arrays stored on-chain)
-- **100% of guesses** are encrypted before submission
-- **100% of game logic** runs on encrypted data (no plaintext comparisons)
-- **Winner addresses** remain encrypted until finalization
-- **Public outputs** (breaches, signals, isWin) are selectively made decryptable via `FHE.makePubliclyDecryptable()`
-
-### FHE Operations Used
-
-The contract extensively uses Zama's FHE operations:
-
-| Operation | Purpose | Usage in Vault Wars |
-|-----------|---------|---------------------|
-| `FHE.fromExternal()` | Convert external encrypted inputs to contract handles | Encrypting vault codes and guesses on submission |
-| `FHE.eq()` | Encrypted equality comparison | Comparing vault digits with guess digits |
-| `FHE.select()` | Conditional selection on encrypted data | Determining winner, counting breaches/signals |
-| `FHE.add()` | Encrypted addition | Counting total breaches and signals |
-| `FHE.and()` / `FHE.or()` / `FHE.not()` | Encrypted boolean operations | Complex game logic for signal detection |
-| `FHE.makePubliclyDecryptable()` | Grant public decryption permissions | Making game results viewable without revealing inputs |
-| `FHE.checkSignatures()` | Verify KMS/Gateway decryption signatures | Ensuring decryption integrity in `fulfillDecryption()` |
-| `FHE.allow()` / `FHE.allowThis()` | Access control for encrypted data | Managing permissions for encrypted vaults and winner addresses |
-
-### FHE Stretching: Complex Encrypted Computations
-
-The game logic demonstrates **sophisticated FHE usage** in `_computeBreachesAndSignals()`:
-
-```solidity
-// All comparisons happen on encrypted data
-ebool isExactMatch = FHE.eq(vault[i], guess[i]);
-breaches = FHE.add(breaches, FHE.select(isExactMatch, FHE.asEuint8(1), FHE.asEuint8(0)));
-
-// Complex signal detection with multiple encrypted conditions
-ebool digitMatch = FHE.eq(guess[i], vault[j]);
-ebool guessNotMatched = FHE.not(guessMatched[i]);
-ebool vaultNotMatched = FHE.not(vaultMatched[j]);
-ebool isSignal = FHE.and(FHE.and(digitMatch, guessNotMatched), vaultNotMatched);
-```
-
-This demonstrates **nested encrypted operations** and **conditional logic on encrypted data**, showcasing the full power of FHE.
+Vault Wars maximizes FHE usage with **100% of vault codes encrypted**, **100% of guesses encrypted**, and **100% of game logic running on encrypted data**. The contract uses key FHE operations including `FHE.fromExternal()` for input encryption, `FHE.eq()` for encrypted comparisons, `FHE.select()` for conditional logic, `FHE.add()` for counting, boolean operations for signal detection, and `FHE.checkSignatures()` for KMS verification during winner finalization.
 
 ---
 
@@ -120,14 +80,6 @@ This demonstrates **nested encrypted operations** and **conditional logic on enc
 │  VaultWars.sol  │
 │  (Smart Contract)│
 │  on FHEVM       │
-└────────┬────────┘
-         │
-         │ Encrypted computation
-         │ (FHE operations)
-         ▼
-┌─────────────────┐
-│  FHEVM Network  │
-│  (Zama Gateway) │
 └─────────────────┘
 ```
 
@@ -317,17 +269,14 @@ The `VaultWars.sol` contract is structured around encrypted data:
 
 This project consists of two repositories:
 
-1. **Frontend**: `/home/diac/Documents/vault-wars-fhe-arena` (this repo)
-2. **Smart Contracts**: `/home/diac/Documents/vault-wars-ca`
+1. **Frontend**: This repository (vault-wars-fhe-arena)
+2. **Smart Contracts**: Separate repository (vault-wars-ca) containing the Hardhat project
 
 ### Installation
 
 #### Frontend Setup
 
 ```bash
-# Navigate to frontend directory
-cd /home/diac/Documents/vault-wars-fhe-arena
-
 # Install dependencies
 npm install
 
@@ -344,8 +293,8 @@ npm run build
 #### Smart Contract Setup
 
 ```bash
-# Navigate to contract directory
-cd /home/diac/Documents/vault-wars-ca
+# Navigate to the contract repository
+cd ../vault-wars-ca
 
 # Install dependencies
 npm install
@@ -379,8 +328,7 @@ VITE_CONTRACT_ADDRESS=0x...  # Deployed VaultWars contract address
 #### Deploy to Local Network
 
 ```bash
-# Terminal 1: Start local FHEVM node
-cd /home/diac/Documents/vault-wars-ca
+# Terminal 1: Start local FHEVM node (in contract repo)
 npx hardhat node
 
 # Terminal 2: Deploy contracts
@@ -390,7 +338,7 @@ npx hardhat deploy --network localhost
 #### Deploy to Sepolia Testnet
 
 ```bash
-cd /home/diac/Documents/vault-wars-ca
+# In the contract repository
 npx hardhat deploy --network sepolia
 
 # Verify contract (optional)
@@ -403,7 +351,6 @@ After deployment, update the frontend `.env` file with the deployed contract add
 
 1. **Start Frontend**:
    ```bash
-   cd /home/diac/Documents/vault-wars-fhe-arena
    npm run dev
    ```
 
@@ -416,8 +363,8 @@ After deployment, update the frontend `.env` file with the deployed contract add
 ### Navigation
 
 - **Frontend**: React app with routes for creating/joining rooms and gameplay
-- **Contracts**: Solidity contracts in `contracts/VaultWars.sol`
-- **Tests**: Comprehensive test suite in `test/VaultWars.ts`
+- **Contracts**: Solidity contracts in the contract repository at `contracts/VaultWars.sol`
+- **Tests**: Comprehensive test suite in `hardhat/test/VaultWars.ts` (in contract repo)
 
 ---
 
@@ -506,12 +453,12 @@ This ensures that:
 
 ### Test Suite Location
 
-All tests are located in: `/home/diac/Documents/vault-wars-ca/test/VaultWars.ts`
+All tests are located in: `hardhat/test/VaultWars.ts` (in the contract repository)
 
 ### Test Execution
 
 ```bash
-cd /home/diac/Documents/vault-wars-ca
+# In the contract repository
 npm run test
 ```
 
@@ -630,12 +577,7 @@ The test suite demonstrates that **FHE is working correctly** and that **all gam
 - [ ] **Cross-Chain Support**: Deploy on multiple FHEVM-enabled chains
 - [ ] **Mobile App**: Native mobile application with optimized FHE performance
 
-### Phase 3: Performance & UX
-- [ ] **Gas Optimization**: Further optimize FHE operations for lower costs
-- [ ] **Batch Operations**: Support for batch probe submissions
-- [ ] **Off-Chain Relayer**: Optional off-chain relayer for faster decryption
-
-### Phase 4: Community & Ecosystem
+### Phase 3: Community & Ecosystem
 - [ ] **Open Source SDK**: Publish SDK for building FHE games
 - [ ] **Game Templates**: Templates for other FHE-based games
 - [ ] **Community Governance**: DAO for game parameter management
